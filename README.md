@@ -1,4 +1,4 @@
-# oura-web
+# oura-dashboard
 
 A local web dashboard for Oura Ring biometric data. Fetches data from the Oura Ring API v2 and stores it in a local SQLite database, so you can browse historical trends without hitting the API every time.
 
@@ -13,7 +13,7 @@ A local web dashboard for Oura Ring biometric data. Fetches data from the Oura R
 
 1. Visit https://cloud.ouraring.com/personal-access-tokens (login required)
 2. Click **"Create A New Personal Access Token"**
-3. Enter a name (e.g. `oura-web`)
+3. Enter a name (e.g. `oura-dashboard`)
 4. Click **"Create"**
 5. Copy the displayed token (it will not be shown again)
 

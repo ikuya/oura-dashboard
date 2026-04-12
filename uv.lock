@@ -169,7 +169,7 @@ wheels = [
 ]
 
 [[package]]
-name = "oura-web"
+name = "oura-dashboard"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

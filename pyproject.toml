@@ -1,5 +1,5 @@
 [project]
-name = "oura-web"
+name = "oura-dashboard"
 version = "0.1.0"
 description = "Oura Ring dashboard web app"
 requires-python = ">=3.14"
