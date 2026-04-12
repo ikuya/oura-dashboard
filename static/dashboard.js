@@ -1,0 +1,379 @@
+"use strict";
+
+// --- State ---
+const state = {
+  days: 30,
+  charts: {},
+};
+
+// --- Helpers ---
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+function daysAgoStr(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+function scoreColor(v) {
+  if (v == null) return "#6b7280";
+  if (v >= 80) return "#22c55e";
+  if (v >= 60) return "#eab308";
+  return "#ef4444";
+}
+function scoreClass(v) {
+  if (v == null) return "score-neutral";
+  if (v >= 80) return "score-green";
+  if (v >= 60) return "score-yellow";
+  return "score-red";
+}
+function setStatus(msg, isError = false) {
+  const el = document.getElementById("status-bar");
+  el.textContent = msg;
+  el.className = isError ? "error" : "";
+}
+
+// --- Chart defaults ---
+Chart.defaults.color = "#6b7280";
+Chart.defaults.borderColor = "#2a2d3a";
+Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+Chart.defaults.font.size = 12;
+
+const TIME_SCALE = {
+  type: "time",
+  time: { unit: "day", tooltipFormat: "yyyy-MM-dd" },
+  grid: { color: "#2a2d3a" },
+  ticks: { maxTicksLimit: 8 },
+};
+const TIME_SCALE_MINUTE = {
+  type: "time",
+  time: { unit: "hour", tooltipFormat: "yyyy-MM-dd HH:mm" },
+  grid: { color: "#2a2d3a" },
+  ticks: { maxTicksLimit: 10 },
+};
+
+function makeChart(id, config) {
+  if (state.charts[id]) {
+    state.charts[id].destroy();
+  }
+  const ctx = document.getElementById(id).getContext("2d");
+  state.charts[id] = new Chart(ctx, config);
+  return state.charts[id];
+}
+
+function lineDataset(label, records, color, yField = "score") {
+  return {
+    label,
+    data: records.map((r) => ({ x: r.day, y: r[yField] ?? null })),
+    borderColor: color,
+    backgroundColor: color + "22",
+    pointBackgroundColor: records.map((r) => scoreColor(r[yField])),
+    pointRadius: 3,
+    tension: 0.3,
+    spanGaps: true,
+    fill: false,
+  };
+}
+
+// --- Score cards ---
+function updateCard(prefix, records, valueField = "score", formatter = (v) => v == null ? "—" : Math.round(v)) {
+  if (!records || records.length === 0) return;
+  const last = records[records.length - 1];
+  const v = last[valueField] ?? last.score ?? null;
+  const el = document.getElementById(`card-${prefix}`);
+  const dateEl = document.getElementById(`card-${prefix}-date`);
+  if (!el) return;
+  el.textContent = formatter(v);
+  el.className = `card-value ${scoreClass(v)}`;
+  if (dateEl) dateEl.textContent = last.day || "";
+}
+
+// --- Render all charts ---
+function renderAll(data, hrData) {
+  const { sleep = [], readiness = [], activity = [], stress = [],
+          spo2 = [], temperature = [], resilience = [],
+          vo2_max = [], cardiovascular_age = [] } = data;
+
+  // Cards
+  updateCard("sleep", sleep);
+  updateCard("readiness", readiness);
+  updateCard("activity", activity);
+  updateCard("stress", stress, "stress_high",
+    (v) => v == null ? "—" : `${Math.round(v)}m`);
+  updateCard("spo2", spo2, "score",
+    (v) => v == null ? "—" : `${v.toFixed(1)}%`);
+  updateCard("temp", temperature, "temperature_deviation",
+    (v) => v == null ? "—" : (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)));
+
+  // Scores line chart
+  makeChart("chart-scores", {
+    type: "line",
+    data: {
+      datasets: [
+        lineDataset("Sleep", sleep, "#6366f1"),
+        lineDataset("Readiness", readiness, "#22c55e"),
+        lineDataset("Activity", activity, "#f59e0b"),
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: TIME_SCALE,
+        y: { min: 0, max: 100, grid: { color: "#2a2d3a" } },
+      },
+      plugins: { legend: { position: "top" } },
+    },
+  });
+
+  // Stress bar chart
+  makeChart("chart-stress", {
+    type: "bar",
+    data: {
+      datasets: [{
+        label: "High stress (min)",
+        data: stress.map((r) => ({ x: r.day, y: r.stress_high ?? null })),
+        backgroundColor: "#ef444488",
+        borderColor: "#ef4444",
+        borderWidth: 1,
+      }],
+    },
+    options: {
+      responsive: true,
+      scales: { x: TIME_SCALE, y: { grid: { color: "#2a2d3a" } } },
+      plugins: { legend: { display: false } },
+    },
+  });
+
+  // SpO2
+  const spo2Scores = spo2.map((r) => {
+    let v = r.spo2_percentage;
+    if (typeof v === "object" && v !== null) v = v.average;
+    return { x: r.day, y: v ?? r.score ?? null };
+  });
+  makeChart("chart-spo2", {
+    type: "line",
+    data: {
+      datasets: [{
+        label: "SpO2 (%)",
+        data: spo2Scores,
+        borderColor: "#38bdf8",
+        backgroundColor: "#38bdf822",
+        tension: 0.3,
+        spanGaps: true,
+        pointRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: TIME_SCALE,
+        y: { min: 90, max: 100, grid: { color: "#2a2d3a" } },
+      },
+      plugins: { legend: { display: false } },
+    },
+  });
+
+  // Temperature deviation
+  makeChart("chart-temp", {
+    type: "line",
+    data: {
+      datasets: [{
+        label: "Temp deviation (°C)",
+        data: temperature.map((r) => ({ x: r.day, y: r.temperature_deviation ?? null })),
+        borderColor: "#fb923c",
+        backgroundColor: "#fb923c22",
+        tension: 0.3,
+        spanGaps: true,
+        pointRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: TIME_SCALE,
+        y: {
+          grid: { color: "#2a2d3a" },
+          ticks: { callback: (v) => (v > 0 ? `+${v}` : v) },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        annotation: undefined,
+      },
+    },
+  });
+
+  // Heart rate
+  makeChart("chart-hr", {
+    type: "line",
+    data: {
+      datasets: [{
+        label: "BPM",
+        data: hrData.map((r) => ({ x: r.timestamp, y: r.bpm })),
+        borderColor: "#f43f5e",
+        backgroundColor: "#f43f5e11",
+        tension: 0.1,
+        pointRadius: 0,
+        borderWidth: 1.5,
+      }],
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: TIME_SCALE_MINUTE,
+        y: { grid: { color: "#2a2d3a" } },
+      },
+      plugins: { legend: { display: false } },
+      animation: false,
+    },
+  });
+
+  // Resilience (ordinal)
+  const RESILIENCE_LABELS = { 1: "limited", 2: "adequate", 3: "solid", 4: "strong", 5: "exceptional" };
+  makeChart("chart-resilience", {
+    type: "line",
+    data: {
+      datasets: [{
+        label: "Resilience",
+        data: resilience.map((r) => ({ x: r.day, y: r.score ?? null })),
+        borderColor: "#a78bfa",
+        backgroundColor: "#a78bfa22",
+        tension: 0.3,
+        spanGaps: true,
+        pointRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: TIME_SCALE,
+        y: {
+          min: 0, max: 6,
+          grid: { color: "#2a2d3a" },
+          ticks: { stepSize: 1, callback: (v) => RESILIENCE_LABELS[v] || "" },
+        },
+      },
+      plugins: { legend: { display: false } },
+    },
+  });
+
+  // VO2 Max
+  makeChart("chart-vo2", {
+    type: "line",
+    data: {
+      datasets: [{
+        label: "VO2 Max",
+        data: vo2_max.map((r) => ({ x: r.day, y: r.vo2_max ?? r.score ?? null })),
+        borderColor: "#34d399",
+        backgroundColor: "#34d39922",
+        tension: 0.3,
+        spanGaps: true,
+        pointRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      scales: { x: TIME_SCALE, y: { grid: { color: "#2a2d3a" } } },
+      plugins: { legend: { display: false } },
+    },
+  });
+
+  // Cardiovascular Age
+  makeChart("chart-cardio", {
+    type: "line",
+    data: {
+      datasets: [{
+        label: "Vascular Age",
+        data: cardiovascular_age.map((r) => ({ x: r.day, y: r.vascular_age ?? r.score ?? null })),
+        borderColor: "#fb7185",
+        backgroundColor: "#fb718522",
+        tension: 0.3,
+        spanGaps: true,
+        pointRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      scales: { x: TIME_SCALE, y: { grid: { color: "#2a2d3a" } } },
+      plugins: { legend: { display: false } },
+    },
+  });
+}
+
+// --- Sync status table ---
+async function loadSyncStatus() {
+  try {
+    const res = await fetch("/api/sync/status");
+    const status = await res.json();
+    const table = document.getElementById("sync-status-table");
+    table.innerHTML = Object.entries(status)
+      .map(([m, v]) =>
+        `<tr><td>${m}</td><td>${v.last_day || "never"}</td><td>${v.rows} rows</td></tr>`
+      ).join("");
+  } catch (_) {}
+}
+
+// --- Main load ---
+async function loadData() {
+  const end = todayStr();
+  const start = daysAgoStr(state.days);
+  const hrStart = daysAgoStr(7);
+
+  setStatus("Loading...");
+
+  try {
+    const [metricsRes, hrRes] = await Promise.all([
+      fetch(`/api/metrics?start=${start}&end=${end}`),
+      fetch(`/api/heartrate?start=${hrStart}&end=${end}`),
+    ]);
+
+    if (!metricsRes.ok) throw new Error(`Metrics fetch failed: ${metricsRes.status}`);
+    const data = await metricsRes.json();
+    const hrData = hrRes.ok ? await hrRes.json() : [];
+
+    renderAll(data, hrData);
+    setStatus("");
+    await loadSyncStatus();
+  } catch (e) {
+    setStatus(`Error: ${e.message}`, true);
+  }
+}
+
+// --- Sync button ---
+document.getElementById("sync-btn").addEventListener("click", async () => {
+  const btn = document.getElementById("sync-btn");
+  btn.disabled = true;
+  btn.textContent = "Syncing...";
+  setStatus("Syncing with Oura API...");
+
+  try {
+    const res = await fetch("/api/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+    const result = await res.json();
+    const synced = result.synced || {};
+    const total = Object.values(synced).reduce((a, b) => a + b, 0);
+    const errCount = Object.keys(result.errors || {}).length;
+    let msg = total > 0 ? `Sync complete: ${total} new records fetched.` : "Sync complete: already up to date.";
+    if (errCount > 0) msg += ` (${errCount} metric(s) failed)`;
+    setStatus(msg);
+    await loadData();
+  } catch (e) {
+    setStatus(`Sync error: ${e.message}`, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Sync";
+  }
+});
+
+// --- Range buttons ---
+document.querySelectorAll(".range-btns button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".range-btns button").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    state.days = parseInt(btn.dataset.days, 10);
+    loadData();
+  });
+});
+
+// --- Init ---
+loadData();

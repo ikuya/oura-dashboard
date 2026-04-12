@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oura Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Oura Dashboard</h1>
+    <div class="range-btns">
+      <button data-days="7">7d</button>
+      <button data-days="30" class="active">30d</button>
+      <button data-days="90">90d</button>
+      <button data-days="180">180d</button>
+    </div>
+    <button id="sync-btn">Sync</button>
+  </header>
+
+  <div id="status-bar"></div>
+
+  <!-- Today's score cards -->
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Sleep</div>
+      <div class="card-value score-neutral" id="card-sleep">—</div>
+      <div class="card-sub" id="card-sleep-date"></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Readiness</div>
+      <div class="card-value score-neutral" id="card-readiness">—</div>
+      <div class="card-sub" id="card-readiness-date"></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Activity</div>
+      <div class="card-value score-neutral" id="card-activity">—</div>
+      <div class="card-sub" id="card-activity-date"></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Stress (high)</div>
+      <div class="card-value score-neutral" id="card-stress">—</div>
+      <div class="card-sub" id="card-stress-date"></div>
+    </div>
+    <div class="card">
+      <div class="card-label">SpO2</div>
+      <div class="card-value score-neutral" id="card-spo2">—</div>
+      <div class="card-sub" id="card-spo2-date"></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Temp. Dev.</div>
+      <div class="card-value score-neutral" id="card-temp">—</div>
+      <div class="card-sub" id="card-temp-date"></div>
+    </div>
+  </div>
+
+  <!-- Main scores chart -->
+  <div class="chart-row">
+    <div class="chart-card">
+      <h2>Sleep / Readiness / Activity Scores</h2>
+      <canvas id="chart-scores"></canvas>
+    </div>
+  </div>
+
+  <!-- Stress + SpO2 -->
+  <div class="chart-row two-col">
+    <div class="chart-card">
+      <h2>Stress (high minutes)</h2>
+      <canvas id="chart-stress"></canvas>
+    </div>
+    <div class="chart-card">
+      <h2>SpO2 (%)</h2>
+      <canvas id="chart-spo2"></canvas>
+    </div>
+  </div>
+
+  <!-- Temperature + Heart Rate -->
+  <div class="chart-row two-col">
+    <div class="chart-card">
+      <h2>Body Temperature Deviation (°C)</h2>
+      <canvas id="chart-temp"></canvas>
+    </div>
+    <div class="chart-card">
+      <h2>Heart Rate <span id="hr-range-note" style="font-weight:400;text-transform:none;letter-spacing:0;">(last 7 days)</span></h2>
+      <canvas id="chart-hr"></canvas>
+    </div>
+  </div>
+
+  <!-- Resilience / VO2 Max / Cardiovascular Age -->
+  <div class="misc-grid">
+    <div class="misc-card">
+      <h3>Resilience</h3>
+      <canvas id="chart-resilience" style="max-height:120px;"></canvas>
+    </div>
+    <div class="misc-card">
+      <h3>VO2 Max</h3>
+      <canvas id="chart-vo2" style="max-height:120px;"></canvas>
+    </div>
+    <div class="misc-card">
+      <h3>Cardiovascular Age</h3>
+      <canvas id="chart-cardio" style="max-height:120px;"></canvas>
+    </div>
+  </div>
+
+  <footer>
+    <details>
+      <summary>Sync status</summary>
+      <table id="sync-status-table"></table>
+    </details>
+  </footer>
+</div>
+
+<script src="/static/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+[project]
+name = "oura-web"
+version = "0.1.0"
+description = "Oura Ring dashboard web app"
+requires-python = ">=3.14"
+dependencies = [
+    "flask>=3.1.0",
+    "requests>=2.33.0",
+    "python-dotenv>=1.2.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
