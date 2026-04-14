@@ -191,6 +191,21 @@ footer table td { padding: 2px 12px 2px 0; }
 
 .advice-modal-title { font-size: 15px; font-weight: 700; color: var(--text); }
 
+.advice-header-actions { display: flex; align-items: center; gap: 8px; }
+
+.advice-copy-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.advice-copy-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.advice-copy-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .advice-close-btn {
   background: none;
   border: none;

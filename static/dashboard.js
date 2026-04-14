@@ -380,8 +380,10 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
   const adviceBtn = document.getElementById("advice-btn");
   const overlay = document.getElementById("advice-overlay");
   const closeBtn = document.getElementById("advice-close-btn");
+  const copyBtn = document.getElementById("advice-copy-btn");
   const contentEl = document.getElementById("advice-content");
   const periodEl = document.getElementById("advice-period");
+  let adviceRaw = "";
 
   function openModal() { overlay.classList.remove("hidden"); }
   function closeModal() { overlay.classList.add("hidden"); }
@@ -392,10 +394,26 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
   });
   closeBtn.addEventListener("click", closeModal);
 
+  copyBtn.disabled = true;
+  copyBtn.addEventListener("click", async () => {
+    if (!adviceRaw) return;
+    try {
+      await navigator.clipboard.writeText(adviceRaw);
+      copyBtn.textContent = "コピー済";
+      setTimeout(() => { copyBtn.textContent = "コピー"; }, 2000);
+    } catch (_) {
+      copyBtn.textContent = "失敗";
+      setTimeout(() => { copyBtn.textContent = "コピー"; }, 2000);
+    }
+  });
+
   adviceBtn.addEventListener("click", async () => {
     adviceBtn.disabled = true;
     adviceBtn.textContent = "分析中...";
     periodEl.textContent = "";
+    copyBtn.disabled = true;
+    copyBtn.textContent = "コピー";
+    adviceRaw = "";
     contentEl.innerHTML = `
       <div class="advice-loading">
         <div class="advice-spinner"></div>
@@ -419,7 +437,9 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
       if (data.period) {
         periodEl.textContent = `分析期間: ${data.period.start} 〜 ${data.period.end}`;
       }
-      contentEl.innerHTML = marked.parse(data.advice || "");
+      adviceRaw = data.advice || "";
+      contentEl.innerHTML = marked.parse(adviceRaw);
+      copyBtn.disabled = false;
     } catch (e) {
       contentEl.innerHTML = `<p style="color:var(--red)">ネットワークエラー: ${e.message}</p>`;
     } finally {
