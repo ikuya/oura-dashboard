@@ -397,14 +397,29 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
   copyBtn.disabled = true;
   copyBtn.addEventListener("click", async () => {
     if (!adviceRaw) return;
-    try {
-      await navigator.clipboard.writeText(adviceRaw);
-      copyBtn.textContent = "コピー済";
-      setTimeout(() => { copyBtn.textContent = "コピー"; }, 2000);
-    } catch (_) {
-      copyBtn.textContent = "失敗";
-      setTimeout(() => { copyBtn.textContent = "コピー"; }, 2000);
+    let success = false;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(adviceRaw);
+        success = true;
+      } catch (_) {}
     }
+    if (!success) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = adviceRaw;
+        ta.readOnly = true;
+        ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none;";
+        document.body.appendChild(ta);
+        ta.focus({ preventScroll: true });
+        ta.select();
+        ta.setSelectionRange(0, ta.value.length);
+        success = document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch (_) {}
+    }
+    copyBtn.textContent = success ? "コピー済" : "失敗";
+    setTimeout(() => { copyBtn.textContent = "コピー"; }, 2000);
   });
 
   adviceBtn.addEventListener("click", async () => {
