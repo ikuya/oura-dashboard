@@ -375,5 +375,59 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
   });
 });
 
+// --- Advice button ---
+(function () {
+  const adviceBtn = document.getElementById("advice-btn");
+  const overlay = document.getElementById("advice-overlay");
+  const closeBtn = document.getElementById("advice-close-btn");
+  const contentEl = document.getElementById("advice-content");
+  const periodEl = document.getElementById("advice-period");
+
+  function openModal() { overlay.classList.remove("hidden"); }
+  function closeModal() { overlay.classList.add("hidden"); }
+
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !overlay.classList.contains("hidden")) closeModal();
+  });
+  closeBtn.addEventListener("click", closeModal);
+
+  adviceBtn.addEventListener("click", async () => {
+    adviceBtn.disabled = true;
+    adviceBtn.textContent = "分析中...";
+    periodEl.textContent = "";
+    contentEl.innerHTML = `
+      <div class="advice-loading">
+        <div class="advice-spinner"></div>
+        <span>Claudeが健康データを分析しています...</span>
+      </div>`;
+    openModal();
+
+    try {
+      const res = await fetch("/api/advice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        contentEl.innerHTML = `<p style="color:var(--red)">エラー: ${data.error || res.status}</p>`;
+        return;
+      }
+
+      if (data.period) {
+        periodEl.textContent = `分析期間: ${data.period.start} 〜 ${data.period.end}`;
+      }
+      contentEl.innerHTML = marked.parse(data.advice || "");
+    } catch (e) {
+      contentEl.innerHTML = `<p style="color:var(--red)">ネットワークエラー: ${e.message}</p>`;
+    } finally {
+      adviceBtn.disabled = false;
+      adviceBtn.textContent = "Advice";
+    }
+  });
+})();
+
 // --- Init ---
 loadData();

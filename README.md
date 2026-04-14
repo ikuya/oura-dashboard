@@ -7,7 +7,8 @@ A local web dashboard for Oura Ring biometric data. Fetches data from the Oura R
 - Overview dashboard with Sleep, Readiness, Activity, Stress, SpO2, Temperature, Heart Rate, Resilience, VO2 Max, and Cardiovascular Age
 - Incremental sync — only fetches dates not yet stored locally
 - Date range selector: 7d / 30d / 90d / 180d
-- Fully local: no external services beyond the Oura API
+- **Advice** — analyzes the last 14 days of data with Claude and displays a health summary and personalized advice in Japanese
+- Fully local: no external services beyond the Oura API and Claude Code
 
 ## Getting an Access Token
 
@@ -25,8 +26,14 @@ A local web dashboard for Oura Ring biometric data. Fetches data from the Oura R
 # Install dependencies
 uv sync
 
-# Set your token
+# Set your Oura token
 echo "OURA_TOKEN=your_token_here" > .env
+```
+
+The **Advice** feature calls `claude` CLI via subprocess. Log in with your Claude Code subscription before using it:
+
+```bash
+claude auth login
 ```
 
 ## Running
@@ -50,6 +57,7 @@ The Flask backend exposes a small JSON API used by the frontend.
 | `GET` | `/api/heartrate` | Heart rate time series (`?start=YYYY-MM-DD&end=YYYY-MM-DD`) |
 | `GET` | `/api/sync/status` | Last synced date and row count per metric |
 | `POST` | `/api/sync` | Trigger incremental sync (body: `{"start": "...", "end": "..."}`) |
+| `POST` | `/api/advice` | Analyze last 14 days with Claude and return health summary and advice |
 
 ## Project Structure
 
