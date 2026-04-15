@@ -9,7 +9,7 @@ A local web dashboard for Oura Ring biometric data. Fetches data from the Oura R
 - Date range selector: 7d / 30d / 90d / 180d
 - **Advice** — analyzes the last 14 days of data with Claude and displays a health summary and personalized advice in Japanese
 - **Advice History** — past advice is saved to the database and browsable via a compact calendar UI
-- **Password protection** — the dashboard is protected by a configurable password (set via `DASHBOARD_PASSWORD` in `.env`)
+- **Password protection** — the dashboard is protected by a configurable password (set via `APP_PASSWORD` in `.env`)
 - Fully local: no external services beyond the Oura API and Claude API
 
 ## Getting an Access Token
@@ -28,9 +28,10 @@ A local web dashboard for Oura Ring biometric data. Fetches data from the Oura R
 # Install dependencies
 uv sync
 
-# Set your Oura token and (optionally) a dashboard password
+# Set required environment variables
 echo "OURA_TOKEN=your_token_here" > .env
-echo "DASHBOARD_PASSWORD=your_password_here" >> .env
+echo "SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')" >> .env
+echo "APP_PASSWORD=your_password_here" >> .env
 ```
 
 The **Advice** feature calls `claude` CLI via subprocess. Log in with your Claude Code subscription before using it:
