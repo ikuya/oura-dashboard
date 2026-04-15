@@ -10,6 +10,16 @@ const state = {
   charts: {},
 };
 
+// --- Auth ---
+async function apiFetch(url, options = {}) {
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    showLoginModal();
+    throw new Error("Unauthorized");
+  }
+  return res;
+}
+
 // --- Helpers ---
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -308,7 +318,7 @@ function renderAll(data, hrData) {
 // --- Sync status table ---
 async function loadSyncStatus() {
   try {
-    const res = await fetch("/api/sync/status");
+    const res = await apiFetch("/api/sync/status");
     const status = await res.json();
     const table = document.getElementById("sync-status-table");
     table.innerHTML = Object.entries(status)
@@ -328,8 +338,8 @@ async function loadData() {
 
   try {
     const [metricsRes, hrRes] = await Promise.all([
-      fetch(`/api/metrics?start=${start}&end=${end}`),
-      fetch(`/api/heartrate?start=${hrStart}&end=${end}`),
+      apiFetch(`/api/metrics?start=${start}&end=${end}`),
+      apiFetch(`/api/heartrate?start=${hrStart}&end=${end}`),
     ]);
 
     if (!metricsRes.ok) throw new Error(`Metrics fetch failed: ${metricsRes.status}`);
@@ -352,7 +362,7 @@ document.getElementById("sync-btn").addEventListener("click", async () => {
   setStatus("Syncing with Oura API...");
 
   try {
-    const res = await fetch("/api/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+    const res = await apiFetch("/api/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
     const result = await res.json();
     const synced = result.synced || {};
     const total = Object.values(synced).reduce((a, b) => a + b, 0);
@@ -452,7 +462,7 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
     openModal();
 
     try {
-      const res = await fetch("/api/advice", {
+      const res = await apiFetch("/api/advice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -497,7 +507,7 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
 
   async function loadAdviceDates() {
     try {
-      const res = await fetch("/api/advice/history");
+      const res = await apiFetch("/api/advice/history");
       if (!res.ok) return;
       const list = await res.json();
       calState.adviceDates = new Set(list.map(e => e.day));
@@ -555,7 +565,7 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
     openModal();
 
     try {
-      const res  = await fetch(`/api/advice/history/${isoDate}`);
+      const res  = await apiFetch(`/api/advice/history/${isoDate}`);
       const data = await res.json();
       if (!res.ok) {
         contentEl.innerHTML = `<p style="color:var(--red)">エラー: ${data.error || res.status}</p>`;
@@ -595,6 +605,67 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
   loadAdviceDates();
   refreshAdviceCalendar = loadAdviceDates;
 })();
+
+// --- Login modal ---
+(function () {
+  const overlay   = document.getElementById("login-overlay");
+  const input     = document.getElementById("login-password-input");
+  const submitBtn = document.getElementById("login-submit-btn");
+  const errorEl   = document.getElementById("login-error");
+
+  function showLoginModal() {
+    errorEl.textContent = "";
+    overlay.classList.remove("hidden");
+    setTimeout(() => input.focus(), 50);
+  }
+
+  function hideLoginModal() {
+    overlay.classList.add("hidden");
+    input.value = "";
+    errorEl.textContent = "";
+  }
+
+  window.showLoginModal = showLoginModal;
+
+  async function doLogin() {
+    const password = input.value;
+    if (!password) return;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "...";
+    errorEl.textContent = "";
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      if (res.ok) {
+        hideLoginModal();
+        loadData();
+        if (typeof refreshAdviceCalendar === "function") refreshAdviceCalendar();
+      } else {
+        const data = await res.json();
+        errorEl.textContent = data.error || "パスワードが違います";
+        input.value = "";
+        input.focus();
+      }
+    } catch (e) {
+      errorEl.textContent = "ネットワークエラー";
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "ログイン";
+    }
+  }
+
+  submitBtn.addEventListener("click", doLogin);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+})();
+
+// --- Logout button ---
+document.getElementById("logout-btn").addEventListener("click", async () => {
+  await fetch("/api/logout", { method: "POST" });
+  showLoginModal();
+});
 
 // --- Init ---
 loadData();

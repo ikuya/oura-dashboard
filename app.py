@@ -4,9 +4,10 @@ import json as _json
 import os
 import subprocess
 from datetime import date, timedelta
+from functools import wraps
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, session
 
 import db
 import sync
@@ -15,7 +16,21 @@ from oura_client import OuraClient, OuraAPIError, _today_str, _n_days_ago_str
 load_dotenv()
 
 app = Flask(__name__, static_folder="static")
+app.secret_key = os.environ.get("SECRET_KEY")
+if not app.secret_key:
+    raise RuntimeError("SECRET_KEY environment variable is not set")
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=7)
+
 db.init_db()
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("authenticated"):
+            return jsonify({"error": "Unauthorized"}), 401
+        return f(*args, **kwargs)
+    return decorated
 
 
 def _get_client() -> OuraClient:
@@ -29,6 +44,27 @@ def _parse_range() -> tuple[str, str]:
     end = request.args.get("end", _today_str())
     start = request.args.get("start", _n_days_ago_str(30))
     return start, end
+
+
+# --- Auth ---
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    password = os.environ.get("APP_PASSWORD")
+    if not password:
+        return jsonify({"error": "APP_PASSWORD not configured"}), 500
+    body = request.get_json(silent=True) or {}
+    if body.get("password") == password:
+        session.permanent = True
+        session["authenticated"] = True
+        return jsonify({"ok": True})
+    return jsonify({"error": "Invalid password"}), 401
+
+
+@app.route("/api/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return jsonify({"ok": True})
 
 
 # --- Static ---
@@ -109,6 +145,7 @@ def _build_health_payload(conn, days: int = 14) -> dict:
 
 
 @app.route("/api/metrics")
+@login_required
 def get_metrics():
     start, end = _parse_range()
     requested = request.args.get("metric", ",".join(DAILY_METRICS))
@@ -125,6 +162,7 @@ def get_metrics():
 
 
 @app.route("/api/metrics/<metric>")
+@login_required
 def get_metric(metric: str):
     if metric not in DAILY_METRICS:
         return jsonify({"error": f"Unknown metric: {metric}"}), 400
@@ -137,6 +175,7 @@ def get_metric(metric: str):
 # --- API: heartrate ---
 
 @app.route("/api/heartrate")
+@login_required
 def get_heartrate():
     start, end = _parse_range()
     with db.get_connection() as conn:
@@ -147,6 +186,7 @@ def get_heartrate():
 # --- API: sync ---
 
 @app.route("/api/sync/status")
+@login_required
 def sync_status():
     with db.get_connection() as conn:
         status = db.get_sync_status(conn)
@@ -154,6 +194,7 @@ def sync_status():
 
 
 @app.route("/api/sync", methods=["POST"])
+@login_required
 def trigger_sync():
     body = request.get_json(silent=True) or {}
     requested_start = body.get("start")
@@ -180,6 +221,7 @@ def trigger_sync():
 # --- API: advice ---
 
 @app.route("/api/advice", methods=["POST"])
+@login_required
 def get_advice():
     with db.get_connection() as conn:
         health_data = _build_health_payload(conn, days=14)
@@ -225,6 +267,7 @@ def get_advice():
 
 
 @app.route("/api/advice/history")
+@login_required
 def get_advice_history():
     with db.get_connection() as conn:
         dates = db.get_advice_dates(conn)
@@ -232,6 +275,7 @@ def get_advice_history():
 
 
 @app.route("/api/advice/history/<date>")
+@login_required
 def get_advice_entry(date: str):
     import re
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):

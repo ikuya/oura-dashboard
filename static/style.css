@@ -153,6 +153,23 @@ footer table td { padding: 2px 12px 2px 0; }
 #advice-btn:hover { background: var(--accent); color: #fff; }
 #advice-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* Logout button */
+#logout-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+#logout-btn:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
 /* Utility */
 .hidden { display: none !important; }
 
