@@ -319,15 +319,20 @@ footer table td { padding: 2px 12px 2px 0; }
 .confirm-ok-btn:hover { opacity: 0.85; }
 
 /* ── Advice History Calendar ── */
+.calendar-card {
+  max-width: 280px;
+  padding: 10px 12px;
+}
+
 .calendar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .cal-month-label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text);
   text-transform: uppercase;
@@ -337,11 +342,11 @@ footer table td { padding: 2px 12px 2px 0; }
 .cal-nav-btn {
   background: none;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 4px;
   color: var(--muted);
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1;
-  padding: 2px 10px 4px;
+  padding: 1px 7px 3px;
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -350,26 +355,26 @@ footer table td { padding: 2px 12px 2px 0; }
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 2px;
 }
 
 .cal-day-name {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--muted);
   text-align: center;
-  padding: 4px 0 8px;
+  padding: 2px 0 4px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
 }
 
 .cal-day {
-  aspect-ratio: 1;
+  height: 28px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  font-size: 13px;
+  border-radius: 4px;
+  font-size: 11px;
   color: var(--muted);
   cursor: default;
   position: relative;
@@ -399,10 +404,10 @@ footer table td { padding: 2px 12px 2px 0; }
 .cal-day.has-advice::after {
   content: '';
   display: block;
-  width: 4px;
-  height: 4px;
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
   background: var(--accent);
   position: absolute;
-  bottom: 5px;
+  bottom: 3px;
 }

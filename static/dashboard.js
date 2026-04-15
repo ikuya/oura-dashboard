@@ -507,7 +507,7 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
 
   function renderCalendar() {
     const MONTHS = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
-    const DAYS   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const DAYS   = ["S","M","T","W","T","F","S"];
 
     monthLabel.textContent = `${calState.year}年 ${MONTHS[calState.month]}`;
 
