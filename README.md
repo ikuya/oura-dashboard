@@ -8,7 +8,9 @@ A local web dashboard for Oura Ring biometric data. Fetches data from the Oura R
 - Incremental sync — only fetches dates not yet stored locally
 - Date range selector: 7d / 30d / 90d / 180d
 - **Advice** — analyzes the last 14 days of data with Claude and displays a health summary and personalized advice in Japanese
-- Fully local: no external services beyond the Oura API and Claude Code
+- **Advice History** — past advice is saved to the database and browsable via a compact calendar UI
+- **Password protection** — the dashboard is protected by a configurable password (set via `DASHBOARD_PASSWORD` in `.env`)
+- Fully local: no external services beyond the Oura API and Claude API
 
 ## Getting an Access Token
 
@@ -26,8 +28,9 @@ A local web dashboard for Oura Ring biometric data. Fetches data from the Oura R
 # Install dependencies
 uv sync
 
-# Set your Oura token
+# Set your Oura token and (optionally) a dashboard password
 echo "OURA_TOKEN=your_token_here" > .env
+echo "DASHBOARD_PASSWORD=your_password_here" >> .env
 ```
 
 The **Advice** feature calls `claude` CLI via subprocess. Log in with your Claude Code subscription before using it:
@@ -58,6 +61,8 @@ The Flask backend exposes a small JSON API used by the frontend.
 | `GET` | `/api/sync/status` | Last synced date and row count per metric |
 | `POST` | `/api/sync` | Trigger incremental sync (body: `{"start": "...", "end": "..."}`) |
 | `POST` | `/api/advice` | Analyze last 14 days with Claude and return health summary and advice |
+| `GET` | `/api/advice/history` | List of dates for which saved advice exists |
+| `GET` | `/api/advice/history/<YYYY-MM-DD>` | Retrieve saved advice for a specific date |
 
 ## Project Structure
 
