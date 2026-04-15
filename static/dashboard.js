@@ -1,5 +1,9 @@
 "use strict";
 
+// Shared across advice IIFEs
+let sharedAdviceRaw = "";
+let refreshAdviceCalendar = null;
+
 // --- State ---
 const state = {
   days: 30,
@@ -386,8 +390,6 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
   const confirmOverlay = document.getElementById("confirm-overlay");
   const confirmOkBtn = document.getElementById("confirm-ok-btn");
   const confirmCancelBtn = document.getElementById("confirm-cancel-btn");
-  let adviceRaw = "";
-
   function openModal() { overlay.classList.remove("hidden"); }
   function closeModal() { overlay.classList.add("hidden"); }
   function openConfirm() { confirmOverlay.classList.remove("hidden"); }
@@ -406,18 +408,18 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
 
   copyBtn.disabled = true;
   copyBtn.addEventListener("click", async () => {
-    if (!adviceRaw) return;
+    if (!sharedAdviceRaw) return;
     let success = false;
     if (navigator.clipboard && navigator.clipboard.writeText) {
       try {
-        await navigator.clipboard.writeText(adviceRaw);
+        await navigator.clipboard.writeText(sharedAdviceRaw);
         success = true;
       } catch (_) {}
     }
     if (!success) {
       try {
         const ta = document.createElement("textarea");
-        ta.value = adviceRaw;
+        ta.value = sharedAdviceRaw;
         ta.readOnly = true;
         ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none;";
         document.body.appendChild(ta);
@@ -441,7 +443,7 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
     periodEl.textContent = "";
     copyBtn.disabled = true;
     copyBtn.textContent = "コピー";
-    adviceRaw = "";
+    sharedAdviceRaw = "";
     contentEl.innerHTML = `
       <div class="advice-loading">
         <div class="advice-spinner"></div>
@@ -465,9 +467,10 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
       if (data.period) {
         periodEl.textContent = `分析期間: ${data.period.start} 〜 ${data.period.end}`;
       }
-      adviceRaw = data.advice || "";
-      contentEl.innerHTML = marked.parse(adviceRaw);
+      sharedAdviceRaw = data.advice || "";
+      contentEl.innerHTML = marked.parse(sharedAdviceRaw);
       copyBtn.disabled = false;
+      if (typeof refreshAdviceCalendar === "function") refreshAdviceCalendar();
     } catch (e) {
       contentEl.innerHTML = `<p style="color:var(--red)">ネットワークエラー: ${e.message}</p>`;
     } finally {
@@ -475,6 +478,122 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
       adviceBtn.textContent = "Advice";
     }
   });
+})();
+
+// --- Advice History Calendar ---
+(function () {
+  const calState = { year: 0, month: 0, adviceDates: new Set() };
+
+  const prevBtn    = document.getElementById("cal-prev-btn");
+  const nextBtn    = document.getElementById("cal-next-btn");
+  const monthLabel = document.getElementById("cal-month-label");
+  const grid       = document.getElementById("calendar-grid");
+  const overlay    = document.getElementById("advice-overlay");
+  const contentEl  = document.getElementById("advice-content");
+  const periodEl   = document.getElementById("advice-period");
+  const copyBtn    = document.getElementById("advice-copy-btn");
+
+  function openModal() { overlay.classList.remove("hidden"); }
+
+  async function loadAdviceDates() {
+    try {
+      const res = await fetch("/api/advice/history");
+      if (!res.ok) return;
+      const list = await res.json();
+      calState.adviceDates = new Set(list.map(e => e.day));
+      renderCalendar();
+    } catch (_) {}
+  }
+
+  function renderCalendar() {
+    const MONTHS = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+    const DAYS   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+    monthLabel.textContent = `${calState.year}年 ${MONTHS[calState.month]}`;
+
+    const today        = new Date().toISOString().slice(0, 10);
+    const firstDow     = new Date(calState.year, calState.month, 1).getDay();
+    const daysInMonth  = new Date(calState.year, calState.month + 1, 0).getDate();
+    const prevMonthEnd = new Date(calState.year, calState.month, 0).getDate();
+
+    let html = DAYS.map(d => `<div class="cal-day-name">${d}</div>`).join("");
+
+    for (let i = firstDow - 1; i >= 0; i--) {
+      html += `<div class="cal-day other-month">${prevMonthEnd - i}</div>`;
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const iso = `${calState.year}-${String(calState.month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const isToday   = iso === today;
+      const hasAdvice = calState.adviceDates.has(iso);
+      let cls = "cal-day";
+      if (isToday)   cls += " today";
+      if (hasAdvice) cls += " has-advice";
+      html += `<div class="${cls}"${hasAdvice ? ` data-date="${iso}"` : ""}>${d}</div>`;
+    }
+
+    const remainder = (firstDow + daysInMonth) % 7;
+    if (remainder !== 0) {
+      for (let d = 1; d <= 7 - remainder; d++) {
+        html += `<div class="cal-day other-month">${d}</div>`;
+      }
+    }
+
+    grid.innerHTML = html;
+  }
+
+  async function openSavedAdvice(isoDate) {
+    sharedAdviceRaw = "";
+    copyBtn.disabled = true;
+    copyBtn.textContent = "コピー";
+    periodEl.textContent = "";
+    contentEl.innerHTML = `
+      <div class="advice-loading">
+        <div class="advice-spinner"></div>
+        <span>アドバイスを読み込んでいます...</span>
+      </div>`;
+    openModal();
+
+    try {
+      const res  = await fetch(`/api/advice/history/${isoDate}`);
+      const data = await res.json();
+      if (!res.ok) {
+        contentEl.innerHTML = `<p style="color:var(--red)">エラー: ${data.error || res.status}</p>`;
+        return;
+      }
+      if (data.period) {
+        periodEl.textContent = `分析期間: ${data.period.start} 〜 ${data.period.end}　（保存日: ${isoDate}）`;
+      }
+      sharedAdviceRaw = data.advice || "";
+      contentEl.innerHTML = marked.parse(sharedAdviceRaw);
+      copyBtn.disabled = false;
+    } catch (e) {
+      contentEl.innerHTML = `<p style="color:var(--red)">ネットワークエラー: ${e.message}</p>`;
+    }
+  }
+
+  grid.addEventListener("click", (e) => {
+    const cell = e.target.closest(".has-advice");
+    if (cell) openSavedAdvice(cell.dataset.date);
+  });
+
+  prevBtn.addEventListener("click", () => {
+    if (calState.month === 0) { calState.year--; calState.month = 11; }
+    else calState.month--;
+    renderCalendar();
+  });
+
+  nextBtn.addEventListener("click", () => {
+    if (calState.month === 11) { calState.year++; calState.month = 0; }
+    else calState.month++;
+    renderCalendar();
+  });
+
+  const now = new Date();
+  calState.year  = now.getFullYear();
+  calState.month = now.getMonth();
+  loadAdviceDates();
+  refreshAdviceCalendar = loadAdviceDates;
 })();
 
 // --- Init ---

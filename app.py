@@ -210,9 +210,40 @@ def get_advice():
     if result.returncode != 0:
         return jsonify({"error": result.stderr or "Claude Code の実行に失敗しました。"}), 502
 
+    try:
+        with db.get_connection() as conn:
+            with db.transaction(conn):
+                db.save_advice(conn, health_data["period"]["start"],
+                               health_data["period"]["end"], result.stdout)
+    except Exception as e:
+        app.logger.error("Failed to save advice: %s", e)
+
     return jsonify({
         "advice": result.stdout,
         "period": health_data["period"],
+    })
+
+
+@app.route("/api/advice/history")
+def get_advice_history():
+    with db.get_connection() as conn:
+        dates = db.get_advice_dates(conn)
+    return jsonify(dates)
+
+
+@app.route("/api/advice/history/<date>")
+def get_advice_entry(date: str):
+    import re
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+        return jsonify({"error": "Invalid date format"}), 400
+    with db.get_connection() as conn:
+        entry = db.get_advice_for_date(conn, date)
+    if entry is None:
+        return jsonify({"error": "No advice for this date"}), 404
+    return jsonify({
+        "advice": entry["content"],
+        "period": {"start": entry["period_start"], "end": entry["period_end"]},
+        "saved_at": entry["saved_at"],
     })
 
 

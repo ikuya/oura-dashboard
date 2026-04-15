@@ -51,6 +51,17 @@ def init_db() -> None:
                 metric          TEXT PRIMARY KEY,
                 last_synced_day TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS advice_history (
+                id           INTEGER PRIMARY KEY,
+                saved_at     TEXT NOT NULL,
+                period_start TEXT NOT NULL,
+                period_end   TEXT NOT NULL,
+                content      TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_advice_history_saved_at
+                ON advice_history(saved_at);
         """)
 
 
@@ -113,6 +124,37 @@ def get_heartrate(conn: sqlite3.Connection, start: str, end: str) -> list[dict]:
         (start, end),
     ).fetchall()
     return [{"timestamp": row["timestamp"], "bpm": row["bpm"]} for row in rows]
+
+
+def save_advice(conn: sqlite3.Connection, period_start: str, period_end: str, content: str) -> int:
+    now = datetime.now(timezone.utc).isoformat()
+    cur = conn.execute(
+        "INSERT INTO advice_history (saved_at, period_start, period_end, content) VALUES (?, ?, ?, ?)",
+        (now, period_start, period_end, content),
+    )
+    return cur.lastrowid
+
+
+def get_advice_dates(conn: sqlite3.Connection) -> list[dict]:
+    rows = conn.execute("""
+        SELECT substr(saved_at, 1, 10) AS day,
+               MAX(saved_at) AS saved_at,
+               period_start, period_end
+        FROM advice_history
+        GROUP BY substr(saved_at, 1, 10)
+        ORDER BY day
+    """).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_advice_for_date(conn: sqlite3.Connection, day: str) -> dict | None:
+    row = conn.execute("""
+        SELECT id, saved_at, period_start, period_end, content
+        FROM advice_history
+        WHERE substr(saved_at, 1, 10) = ?
+        ORDER BY saved_at DESC LIMIT 1
+    """, (day,)).fetchone()
+    return dict(row) if row else None
 
 
 def get_sync_status(conn: sqlite3.Connection) -> dict:
