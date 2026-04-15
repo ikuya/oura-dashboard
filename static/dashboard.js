@@ -383,16 +383,26 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
   const copyBtn = document.getElementById("advice-copy-btn");
   const contentEl = document.getElementById("advice-content");
   const periodEl = document.getElementById("advice-period");
+  const confirmOverlay = document.getElementById("confirm-overlay");
+  const confirmOkBtn = document.getElementById("confirm-ok-btn");
+  const confirmCancelBtn = document.getElementById("confirm-cancel-btn");
   let adviceRaw = "";
 
   function openModal() { overlay.classList.remove("hidden"); }
   function closeModal() { overlay.classList.add("hidden"); }
+  function openConfirm() { confirmOverlay.classList.remove("hidden"); }
+  function closeConfirm() { confirmOverlay.classList.add("hidden"); }
 
   overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+  confirmOverlay.addEventListener("click", (e) => { if (e.target === confirmOverlay) closeConfirm(); });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !overlay.classList.contains("hidden")) closeModal();
+    if (e.key === "Escape") {
+      if (!confirmOverlay.classList.contains("hidden")) closeConfirm();
+      else if (!overlay.classList.contains("hidden")) closeModal();
+    }
   });
   closeBtn.addEventListener("click", closeModal);
+  confirmCancelBtn.addEventListener("click", closeConfirm);
 
   copyBtn.disabled = true;
   copyBtn.addEventListener("click", async () => {
@@ -422,7 +432,10 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
     setTimeout(() => { copyBtn.textContent = "コピー"; }, 2000);
   });
 
-  adviceBtn.addEventListener("click", async () => {
+  adviceBtn.addEventListener("click", () => openConfirm());
+
+  confirmOkBtn.addEventListener("click", async () => {
+    closeConfirm();
     adviceBtn.disabled = true;
     adviceBtn.textContent = "分析中...";
     periodEl.textContent = "";
