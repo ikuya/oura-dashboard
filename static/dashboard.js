@@ -364,12 +364,26 @@ document.getElementById("sync-btn").addEventListener("click", async () => {
   try {
     const res = await apiFetch("/api/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
     const result = await res.json();
+
+    if (!res.ok) {
+      setStatus(`Sync failed (${res.status}): ${result.error || res.statusText}`, true);
+      return;
+    }
+
     const synced = result.synced || {};
     const total = Object.values(synced).reduce((a, b) => a + b, 0);
-    const errCount = Object.keys(result.errors || {}).length;
+    const errors = result.errors || {};
+    const errMetrics = Object.keys(errors);
+
     let msg = total > 0 ? `Sync complete: ${total} new records fetched.` : "Sync complete: already up to date.";
-    if (errCount > 0) msg += ` (${errCount} metric(s) failed)`;
-    setStatus(msg);
+
+    if (errMetrics.length > 0) {
+      const errDetails = errMetrics.map(m => `${m}: ${errors[m].split("\n")[0]}`).join("; ");
+      msg += ` | Failed — ${errDetails}`;
+      setStatus(msg, true);
+    } else {
+      setStatus(msg);
+    }
     await loadData();
   } catch (e) {
     setStatus(`Sync error: ${e.message}`, true);
