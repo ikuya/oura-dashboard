@@ -206,14 +206,17 @@ def trigger_sync():
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 500
 
-    with db.get_connection() as conn:
-        result = sync.run_sync(
-            conn,
-            client,
-            requested_start=requested_start,
-            requested_end=requested_end,
-            metrics=requested_metrics,
-        )
+    try:
+        with db.get_connection() as conn:
+            result = sync.run_sync(
+                conn,
+                client,
+                requested_start=requested_start,
+                requested_end=requested_end,
+                metrics=requested_metrics,
+            )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
     return jsonify(result), 202
 

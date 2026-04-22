@@ -34,7 +34,10 @@ class OuraClient:
             raise OuraAPIError(status, msg) from e
         except requests.exceptions.RequestException as e:
             raise OuraAPIError(None, f"Request failed: {e}") from e
-        return response.json().get("data", [])
+        try:
+            return response.json().get("data", [])
+        except Exception as e:
+            raise OuraAPIError(None, f"Invalid JSON response: {e}") from e
 
     def get_daily_sleep(self, start: str, end: str) -> list[dict]:
         return self._get(
