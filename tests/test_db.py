@@ -54,6 +54,28 @@ def test_get_daily_metrics_merges_json_fields(mem_conn):
     assert rows[0]["contributors"] == {"deep_sleep": 90}
 
 
+def test_get_daily_metrics_bulk_returns_by_metric(mem_conn):
+    db.upsert_daily_metric(mem_conn, "sleep", "2024-01-01", 80, {"score": 80})
+    db.upsert_daily_metric(mem_conn, "readiness", "2024-01-01", 70, {"score": 70})
+    mem_conn.commit()
+
+    rows = db.get_daily_metrics_bulk(
+        mem_conn,
+        ["sleep", "readiness", "activity"],
+        "2024-01-01",
+        "2024-01-01",
+    )
+
+    assert rows["sleep"][0]["score"] == 80
+    assert rows["readiness"][0]["score"] == 70
+    assert rows["activity"] == []
+
+
+def test_get_daily_metrics_bulk_empty_metrics(mem_conn):
+    rows = db.get_daily_metrics_bulk(mem_conn, [], "2024-01-01", "2024-01-31")
+    assert rows == {}
+
+
 # --- upsert_heartrate_batch / get_heartrate ---
 
 def test_upsert_heartrate_batch_inserts(mem_conn):

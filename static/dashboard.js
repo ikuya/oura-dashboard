@@ -460,6 +460,27 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
 
   adviceBtn.addEventListener("click", () => openConfirm());
 
+  async function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function pollAdviceJob(jobId) {
+    const maxAttempts = 80;
+    for (let i = 0; i < maxAttempts; i++) {
+      const res = await apiFetch(`/api/advice/${jobId}`);
+      const data = await res.json();
+
+      if (data.status === "completed") {
+        return data;
+      }
+      if (data.status === "failed") {
+        throw new Error(data.error || "分析に失敗しました。");
+      }
+      await wait(1500);
+    }
+    throw new Error("分析がタイムアウトしました。");
+  }
+
   confirmOkBtn.addEventListener("click", async () => {
     closeConfirm();
     adviceBtn.disabled = true;
@@ -481,12 +502,14 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      const data = await res.json();
+      const queued = await res.json();
 
       if (!res.ok) {
-        contentEl.innerHTML = `<p style="color:var(--red)">エラー: ${data.error || res.status}</p>`;
+        contentEl.innerHTML = `<p style="color:var(--red)">エラー: ${queued.error || res.status}</p>`;
         return;
       }
+
+      const data = await pollAdviceJob(queued.job_id);
 
       if (data.period) {
         periodEl.textContent = `分析期間: ${data.period.start} 〜 ${data.period.end}`;

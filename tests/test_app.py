@@ -1,7 +1,6 @@
 """Tests for Flask API endpoints in app.py."""
 
 import json
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -178,6 +177,8 @@ def test_get_advice_no_data(authed_client, mem_conn):
 
 
 def test_get_advice_success(authed_client, mem_conn):
+    import app as app_module
+
     health_payload = {
         "period": {"start": "2024-01-01", "end": "2024-01-14", "days": 14},
         "metrics": {"sleep": [{"day": "2024-01-14", "score": 80}],
@@ -185,50 +186,62 @@ def test_get_advice_success(authed_client, mem_conn):
                                         "spo2", "resilience", "cardiovascular_age",
                                         "vo2_max", "temperature"]}},
     }
-    mock_proc = MagicMock()
-    mock_proc.returncode = 0
-    mock_proc.stdout = "健康状態は良好です。"
+
+    app_module._advice_jobs.clear()
+    fake_thread = MagicMock()
 
     with patch("app._build_health_payload", return_value=health_payload), \
-         patch("subprocess.run", return_value=mock_proc):
+         patch("app._create_advice_job", return_value="job-123"), \
+         patch("threading.Thread", return_value=fake_thread):
         resp = authed_client.post("/api/advice")
 
+    assert resp.status_code == 202
+    data = resp.get_json()
+    assert data["job_id"] == "job-123"
+    assert data["status"] == "queued"
+    fake_thread.start.assert_called_once()
+
+
+def test_get_advice_job_not_found(authed_client):
+    resp = authed_client.get("/api/advice/unknown-job")
+    assert resp.status_code == 404
+
+
+def test_get_advice_job_completed(authed_client):
+    import app as app_module
+
+    app_module._advice_jobs.clear()
+    app_module._advice_jobs["job-done"] = {
+        "id": "job-done",
+        "status": "completed",
+        "period": {"start": "2024-01-01", "end": "2024-01-14", "days": 14},
+        "advice": "健康状態は良好です。",
+        "error": None,
+    }
+
+    resp = authed_client.get("/api/advice/job-done")
     assert resp.status_code == 200
     data = resp.get_json()
+    assert data["status"] == "completed"
     assert data["advice"] == "健康状態は良好です。"
-    assert data["period"]["start"] == "2024-01-01"
 
 
-def test_get_advice_claude_not_found(authed_client):
-    import subprocess
-    health_payload = {
+def test_get_advice_job_failed(authed_client):
+    import app as app_module
+
+    app_module._advice_jobs.clear()
+    app_module._advice_jobs["job-failed"] = {
+        "id": "job-failed",
+        "status": "failed",
         "period": {"start": "2024-01-01", "end": "2024-01-14", "days": 14},
-        "metrics": {"sleep": [{"day": "2024-01-14", "score": 80}],
-                    **{m: [] for m in ["readiness", "activity", "stress",
-                                        "spo2", "resilience", "cardiovascular_age",
-                                        "vo2_max", "temperature"]}},
+        "advice": "",
+        "error": "分析がタイムアウトしました。",
     }
-    with patch("app._build_health_payload", return_value=health_payload), \
-         patch("subprocess.run", side_effect=FileNotFoundError):
-        resp = authed_client.post("/api/advice")
 
-    assert resp.status_code == 500
-
-
-def test_get_advice_claude_timeout(authed_client):
-    import subprocess
-    health_payload = {
-        "period": {"start": "2024-01-01", "end": "2024-01-14", "days": 14},
-        "metrics": {"sleep": [{"day": "2024-01-14", "score": 80}],
-                    **{m: [] for m in ["readiness", "activity", "stress",
-                                        "spo2", "resilience", "cardiovascular_age",
-                                        "vo2_max", "temperature"]}},
-    }
-    with patch("app._build_health_payload", return_value=health_payload), \
-         patch("subprocess.run", side_effect=subprocess.TimeoutExpired("claude", 120)):
-        resp = authed_client.post("/api/advice")
-
-    assert resp.status_code == 504
+    resp = authed_client.get("/api/advice/job-failed")
+    assert resp.status_code == 502
+    data = resp.get_json()
+    assert data["status"] == "failed"
 
 
 # --- GET /api/advice/history ---

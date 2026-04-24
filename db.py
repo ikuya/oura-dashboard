@@ -118,6 +118,27 @@ def get_daily_metrics(conn: sqlite3.Connection, metric: str, start: str, end: st
     return result
 
 
+def get_daily_metrics_bulk(
+    conn: sqlite3.Connection, metrics: list[str], start: str, end: str
+) -> dict[str, list[dict]]:
+    if not metrics:
+        return {}
+
+    placeholders = ",".join(["?"] * len(metrics))
+    rows = conn.execute(
+        f"""SELECT metric, day, score, data_json FROM daily_metrics
+            WHERE metric IN ({placeholders}) AND day >= ? AND day <= ?
+            ORDER BY metric, day""",
+        [*metrics, start, end],
+    ).fetchall()
+
+    result = {metric: [] for metric in metrics}
+    for row in rows:
+        data = json.loads(row["data_json"])
+        result[row["metric"]].append({"day": row["day"], "score": row["score"], **data})
+    return result
+
+
 def get_heartrate(conn: sqlite3.Connection, start: str, end: str) -> list[dict]:
     rows = conn.execute(
         "SELECT timestamp, bpm FROM heartrate WHERE day >= ? AND day <= ? ORDER BY timestamp",

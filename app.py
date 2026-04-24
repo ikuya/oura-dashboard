@@ -3,7 +3,9 @@
 import json as _json
 import os
 import subprocess
-from datetime import date, timedelta
+import threading
+import uuid
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 
 from dotenv import load_dotenv
@@ -81,6 +83,9 @@ DAILY_METRICS = [
     "resilience", "cardiovascular_age", "vo2_max", "temperature",
 ]
 
+_advice_jobs_lock = threading.Lock()
+_advice_jobs: dict[str, dict] = {}
+
 ADVICE_SYSTEM_PROMPT = """\
 あなたはOura Ringの健康データを解析する専門家アシスタントです。
 ユーザーから過去14日間のOura Ringデータ（睡眠、準備度、活動量、ストレス、血中酸素濃度、体温偏差、回復力、VO2 Max、心血管年齢）が提供されます。
@@ -137,11 +142,107 @@ def _extract_key_fields(metric: str, row: dict) -> dict:
 def _build_health_payload(conn, days: int = 14) -> dict:
     today = _today_str()
     start = (date.fromisoformat(today) - timedelta(days=days - 1)).isoformat()
-    payload = {}
-    for metric in DAILY_METRICS:
-        rows = db.get_daily_metrics(conn, metric, start, today)
-        payload[metric] = [_extract_key_fields(metric, r) for r in rows]
+    metrics_data = db.get_daily_metrics_bulk(conn, DAILY_METRICS, start, today)
+    payload = {
+        metric: [_extract_key_fields(metric, r) for r in metrics_data.get(metric, [])]
+        for metric in DAILY_METRICS
+    }
     return {"period": {"start": start, "end": today, "days": days}, "metrics": payload}
+
+
+def _build_advice_prompt(health_data: dict) -> str:
+    return (
+        ADVICE_SYSTEM_PROMPT
+        + "\n\n以下は私の直近14日間のOura Ringデータです。分析とアドバイスをお願いします。\n\n"
+        + "```json\n"
+        + _json.dumps(health_data, ensure_ascii=False, indent=2)
+        + "\n```"
+    )
+
+
+def _set_advice_job(job_id: str, **updates) -> dict | None:
+    with _advice_jobs_lock:
+        job = _advice_jobs.get(job_id)
+        if job is None:
+            return None
+        job.update(updates)
+        return dict(job)
+
+
+def _create_advice_job(period: dict) -> str:
+    job_id = str(uuid.uuid4())
+    with _advice_jobs_lock:
+        _advice_jobs[job_id] = {
+            "id": job_id,
+            "status": "queued",
+            "period": period,
+            "advice": "",
+            "error": None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    return job_id
+
+
+def _run_advice_job(job_id: str, prompt: str) -> None:
+    _set_advice_job(
+        job_id,
+        status="running",
+        updated_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+    try:
+        result = subprocess.run(
+            ["claude", "-p", prompt, "--max-turns", "1"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except FileNotFoundError:
+        _set_advice_job(
+            job_id,
+            status="failed",
+            error="claude コマンドが見つかりません。Claude Code がインストールされているか確認してください。",
+            updated_at=datetime.now(timezone.utc).isoformat(),
+        )
+        return
+    except subprocess.TimeoutExpired:
+        _set_advice_job(
+            job_id,
+            status="failed",
+            error="分析がタイムアウトしました。",
+            updated_at=datetime.now(timezone.utc).isoformat(),
+        )
+        return
+
+    if result.returncode != 0:
+        _set_advice_job(
+            job_id,
+            status="failed",
+            error=result.stderr or "Claude Code の実行に失敗しました。",
+            updated_at=datetime.now(timezone.utc).isoformat(),
+        )
+        return
+
+    saved_advice = result.stdout
+    job = _set_advice_job(
+        job_id,
+        status="completed",
+        advice=saved_advice,
+        error=None,
+        updated_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+    if not job:
+        return
+
+    period = job["period"]
+    try:
+        with db.get_connection() as conn:
+            with db.transaction(conn):
+                db.save_advice(conn, period["start"], period["end"], saved_advice)
+    except Exception as e:
+        app.logger.error("Failed to save advice: %s", e)
 
 
 @app.route("/api/metrics")
@@ -229,41 +330,34 @@ def get_advice():
     if not any(health_data["metrics"].values()):
         return jsonify({"error": "データがありません。まずSyncを実行してください。"}), 400
 
-    prompt = (
-        ADVICE_SYSTEM_PROMPT
-        + "\n\n以下は私の直近14日間のOura Ringデータです。分析とアドバイスをお願いします。\n\n"
-        + "```json\n"
-        + _json.dumps(health_data, ensure_ascii=False, indent=2)
-        + "\n```"
-    )
+    prompt = _build_advice_prompt(health_data)
+    job_id = _create_advice_job(health_data["period"])
 
-    try:
-        result = subprocess.run(
-            ["claude", "-p", prompt, "--max-turns", "1"],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-    except FileNotFoundError:
-        return jsonify({"error": "claude コマンドが見つかりません。Claude Code がインストールされているか確認してください。"}), 500
-    except subprocess.TimeoutExpired:
-        return jsonify({"error": "分析がタイムアウトしました。"}), 504
+    worker = threading.Thread(target=_run_advice_job, args=(job_id, prompt), daemon=True)
+    worker.start()
 
-    if result.returncode != 0:
-        return jsonify({"error": result.stderr or "Claude Code の実行に失敗しました。"}), 502
+    return jsonify({"job_id": job_id, "status": "queued"}), 202
 
-    try:
-        with db.get_connection() as conn:
-            with db.transaction(conn):
-                db.save_advice(conn, health_data["period"]["start"],
-                               health_data["period"]["end"], result.stdout)
-    except Exception as e:
-        app.logger.error("Failed to save advice: %s", e)
 
-    return jsonify({
-        "advice": result.stdout,
-        "period": health_data["period"],
-    })
+@app.route("/api/advice/<job_id>", methods=["GET"])
+@login_required
+def get_advice_job(job_id: str):
+    with _advice_jobs_lock:
+        job = _advice_jobs.get(job_id)
+
+    if job is None:
+        return jsonify({"error": "Job not found"}), 404
+
+    base = {
+        "job_id": job["id"],
+        "status": job["status"],
+        "period": job["period"],
+    }
+    if job["status"] == "completed":
+        return jsonify({**base, "advice": job["advice"]})
+    if job["status"] == "failed":
+        return jsonify({**base, "error": job["error"]}), 502
+    return jsonify(base), 202
 
 
 @app.route("/api/advice/history")

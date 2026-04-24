@@ -61,7 +61,8 @@ The Flask backend exposes a small JSON API used by the frontend.
 | `GET` | `/api/heartrate` | Heart rate time series (`?start=YYYY-MM-DD&end=YYYY-MM-DD`) |
 | `GET` | `/api/sync/status` | Last synced date and row count per metric |
 | `POST` | `/api/sync` | Trigger incremental sync (body: `{"start": "...", "end": "..."}`) |
-| `POST` | `/api/advice` | Analyze last 14 days with Claude and return health summary and advice |
+| `POST` | `/api/advice` | Start advice analysis job for the last 14 days and return a `job_id` |
+| `GET` | `/api/advice/<job_id>` | Poll advice job status and get the completed advice |
 | `GET` | `/api/advice/history` | List of dates for which saved advice exists |
 | `GET` | `/api/advice/history/<YYYY-MM-DD>` | Retrieve saved advice for a specific date |
 
