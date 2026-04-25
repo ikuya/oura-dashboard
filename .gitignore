@@ -16,6 +16,9 @@ build/
 .eggs/
 pip-log.txt
 
+# Log
+log/
+
 # Virtual environment
 .venv/
 venv/
