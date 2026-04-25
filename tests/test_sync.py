@@ -6,7 +6,7 @@ import pytest
 
 import db
 import sync
-from sync import find_missing_range, _extract_score, sync_daily_metric, run_sync
+from sync import find_missing_range, _extract_score, sync_daily_metric, run_sync, _backfill_ranges
 
 
 # --- find_missing_range ---
@@ -195,7 +195,8 @@ def test_run_sync_captures_api_errors(mem_conn):
         result = run_sync(mem_conn, client, metrics=["sleep"])
 
     assert "sleep" in result["errors"]
-    assert "sleep" not in result["synced"]
+    # On error the synced count is 0 (not omitted)
+    assert result["synced"].get("sleep", 0) == 0
 
 
 def test_run_sync_heartrate_window_capped_at_30_days(mem_conn):
@@ -203,6 +204,132 @@ def test_run_sync_heartrate_window_capped_at_30_days(mem_conn):
         client = _make_full_client()
         run_sync(mem_conn, client, metrics=["heartrate"])
 
-    call_args = client.get_heartrate.call_args
-    start_arg = call_args[0][0]
-    assert start_arg >= "2024-01-02"
+    # Each API call must stay within a 30-day window
+    for call in client.get_heartrate.call_args_list:
+        start_arg, end_arg = call[0]
+        from datetime import date
+        delta = date.fromisoformat(end_arg) - date.fromisoformat(start_arg)
+        assert delta.days <= 29
+
+
+def test_run_sync_heartrate_loops_to_cover_full_range(mem_conn):
+    # Sync history starts from DEFAULT_START; today is 60+ days later so multiple windows needed
+    with patch("sync._today_str", return_value="2024-03-31"):
+        client = _make_full_client()
+        run_sync(mem_conn, client, metrics=["heartrate"])
+
+    # Should have been called more than once to cover the full range
+    assert client.get_heartrate.call_count > 1
+    # First call should cover the most recent window
+    first_call_end = client.get_heartrate.call_args_list[0][0][1]
+    assert first_call_end == "2024-03-31"
+
+
+# --- _backfill_ranges ---
+
+def test_backfill_ranges_all_missing(mem_conn):
+    # No rows in DB → entire window is a single gap
+    ranges = _backfill_ranges(mem_conn, "sleep", 7, "2024-01-10")
+    assert ranges == [("2024-01-04", "2024-01-10")]
+
+
+def test_backfill_ranges_no_gaps(mem_conn):
+    for i in range(7):
+        from datetime import date, timedelta
+        day = (date.fromisoformat("2024-01-10") - timedelta(days=6 - i)).isoformat()
+        db.upsert_daily_metric(mem_conn, "sleep", day, 80, {"day": day})
+    mem_conn.commit()
+
+    ranges = _backfill_ranges(mem_conn, "sleep", 7, "2024-01-10")
+    assert ranges == []
+
+
+def test_backfill_ranges_single_gap_in_middle(mem_conn):
+    from datetime import date, timedelta
+    # Insert all days except 2024-01-07 and 2024-01-08
+    for i in range(7):
+        day = (date.fromisoformat("2024-01-10") - timedelta(days=6 - i)).isoformat()
+        if day in ("2024-01-07", "2024-01-08"):
+            continue
+        db.upsert_daily_metric(mem_conn, "sleep", day, 80, {"day": day})
+    mem_conn.commit()
+
+    ranges = _backfill_ranges(mem_conn, "sleep", 7, "2024-01-10")
+    assert ranges == [("2024-01-07", "2024-01-08")]
+
+
+def test_backfill_ranges_heartrate(mem_conn):
+    # Insert heartrate for all days except 2024-01-09
+    from datetime import date, timedelta
+    for i in range(7):
+        day = (date.fromisoformat("2024-01-10") - timedelta(days=6 - i)).isoformat()
+        if day == "2024-01-09":
+            continue
+        mem_conn.execute(
+            "INSERT INTO heartrate (timestamp, bpm, day) VALUES (?, ?, ?)",
+            (f"{day}T00:00:00", 60, day),
+        )
+    mem_conn.commit()
+
+    ranges = _backfill_ranges(mem_conn, "heartrate", 7, "2024-01-10")
+    assert ranges == [("2024-01-09", "2024-01-09")]
+
+
+# --- run_sync with backfill ---
+
+def test_run_sync_backfill_fetches_missing_days(mem_conn):
+    from datetime import date, timedelta
+
+    today = "2024-01-10"
+    # Insert all days within window except 2024-01-08 (gap 2 days ago)
+    # sync_log set to yesterday so today's incremental range is (today, today),
+    # not covering the gap.
+    yesterday = "2024-01-09"
+    for i in range(7):
+        day = (date.fromisoformat(today) - timedelta(days=6 - i)).isoformat()
+        if day == "2024-01-08":
+            continue
+        db.upsert_daily_metric(mem_conn, "sleep", day, 80, {"day": day})
+    db.update_sync_log(mem_conn, "sleep", yesterday)
+    mem_conn.commit()
+
+    client = _make_full_client(
+        daily_records=[{"day": "2024-01-08", "score": 75}, {"day": "2024-01-10", "score": 80}]
+    )
+
+    with patch("sync._today_str", return_value=today):
+        result = run_sync(mem_conn, client, metrics=["sleep"], backfill_days=7)
+
+    called_ranges = [c[0] for c in client.get_daily_sleep.call_args_list]
+    # Incremental call: (today, today) and backfill gap: (2024-01-08, 2024-01-08)
+    assert ("2024-01-10", "2024-01-10") in called_ranges
+    assert ("2024-01-08", "2024-01-08") in called_ranges
+    assert result["synced"]["sleep"] > 0
+
+
+def test_run_sync_no_backfill_skips_gaps(mem_conn):
+    from datetime import date, timedelta
+
+    today = "2024-01-10"
+    yesterday = "2024-01-09"
+    # Insert all days within window except 2024-01-08
+    for i in range(7):
+        day = (date.fromisoformat(today) - timedelta(days=6 - i)).isoformat()
+        if day == "2024-01-08":
+            continue
+        db.upsert_daily_metric(mem_conn, "sleep", day, 80, {"day": day})
+    db.update_sync_log(mem_conn, "sleep", yesterday)
+    mem_conn.commit()
+
+    client = _make_full_client(
+        daily_records=[{"day": "2024-01-10", "score": 80}]
+    )
+
+    with patch("sync._today_str", return_value=today):
+        result = run_sync(mem_conn, client, metrics=["sleep"])
+
+    # Without backfill, only the incremental call (today, today) should happen
+    client.get_daily_sleep.assert_called_once_with("2024-01-10", "2024-01-10")
+    # Gap on 2024-01-08 should NOT be fetched
+    called_ranges = [c[0] for c in client.get_daily_sleep.call_args_list]
+    assert ("2024-01-08", "2024-01-08") not in called_ranges

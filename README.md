@@ -50,6 +50,24 @@ Open http://localhost:5000 in a browser.
 
 On first launch, click **Sync** to fetch your historical data from the Oura API. Subsequent syncs only fetch data newer than the last sync.
 
+## Daily Automatic Sync
+
+`daily_sync.py` runs an incremental sync and backfills any missing days within the last 7 days in one shot:
+
+```bash
+uv run python daily_sync.py
+```
+
+### cron
+
+Add a crontab entry with `crontab -e`:
+
+```
+0 15 * * * cd /path/to/oura-dashboard && uv run python daily_sync.py >> /var/log/oura-daily-sync.log 2>&1
+```
+
+`.env` はプロジェクトディレクトリに置いておけば `python-dotenv` が自動で読み込みます。
+
 ## API Endpoints
 
 The Flask backend exposes a small JSON API used by the frontend.
@@ -72,6 +90,7 @@ The Flask backend exposes a small JSON API used by the frontend.
 app.py           Flask app and route definitions
 db.py            SQLite schema, upsert helpers, and query functions
 sync.py          Incremental sync logic (Oura API → SQLite)
+daily_sync.py    CLI entry point for daily automated sync (with 7-day backfill)
 oura_client.py   Oura Ring API v2 HTTP client
 static/
   index.html     Dashboard HTML

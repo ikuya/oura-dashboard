@@ -117,14 +117,65 @@ def sync_heartrate(conn, client: OuraClient, start: str, end: str) -> int:
     return count
 
 
+def _backfill_ranges(conn, metric: str, backfill_days: int, today: str) -> list[tuple[str, str]]:
+    """Return date ranges needed to fill gaps in the backfill window.
+
+    Checks each day in [today-backfill_days+1 .. today] for missing DB rows and
+    returns the minimal set of contiguous ranges that cover those gaps.
+    """
+    window_start = (date.fromisoformat(today) - timedelta(days=backfill_days - 1)).isoformat()
+
+    if metric == "heartrate":
+        existing_days = {
+            row[0]
+            for row in conn.execute(
+                "SELECT DISTINCT day FROM heartrate WHERE day >= ? AND day <= ?",
+                (window_start, today),
+            ).fetchall()
+        }
+    else:
+        existing_days = {
+            row[0]
+            for row in conn.execute(
+                "SELECT day FROM daily_metrics WHERE metric = ? AND day >= ? AND day <= ?",
+                (metric, window_start, today),
+            ).fetchall()
+        }
+
+    ranges: list[tuple[str, str]] = []
+    gap_start: str | None = None
+    current = date.fromisoformat(window_start)
+    end_date = date.fromisoformat(today)
+
+    while current <= end_date:
+        day_str = current.isoformat()
+        missing = day_str not in existing_days
+        if missing and gap_start is None:
+            gap_start = day_str
+        elif not missing and gap_start is not None:
+            ranges.append((gap_start, (current - timedelta(days=1)).isoformat()))
+            gap_start = None
+        current += timedelta(days=1)
+
+    if gap_start is not None:
+        ranges.append((gap_start, today))
+
+    return ranges
+
+
 def run_sync(
     conn,
     client: OuraClient,
     requested_start: str | None = None,
     requested_end: str | None = None,
     metrics: list[str] | None = None,
+    backfill_days: int = 0,
 ) -> dict:
-    """Run incremental sync for all (or specified) metrics. Returns summary dict."""
+    """Run incremental sync for all (or specified) metrics. Returns summary dict.
+
+    If backfill_days > 0, any missing days within the last backfill_days window
+    are also fetched regardless of the sync log state.
+    """
     today = _today_str()
     end = requested_end or today
 
@@ -147,25 +198,55 @@ def run_sync(
             # Override: use the explicitly requested start
             rng = (requested_start, end)
 
-        if rng is None:
+        # Collect ranges to fetch: incremental range + any backfill gaps
+        ranges_to_fetch: list[tuple[str, str]] = []
+        if rng is not None:
+            ranges_to_fetch.append(rng)
+        if backfill_days > 0 and not requested_start:
+            for gap in _backfill_ranges(conn, metric, backfill_days, today):
+                # Skip if already covered by the incremental range
+                if rng and gap[0] >= rng[0]:
+                    continue
+                ranges_to_fetch.append(gap)
+
+        if not ranges_to_fetch:
             result["synced"][metric] = 0
             continue
 
-        fetch_start, fetch_end = rng
         if metric == "heartrate":
-            # Heartrate API enforces a max 30-day window
-            max_start = (date.fromisoformat(fetch_end) - timedelta(days=29)).isoformat()
-            fetch_start = max(fetch_start, max_start)
-        try:
-            with db.transaction(conn):
-                if metric == "heartrate":
-                    count = sync_heartrate(conn, client, fetch_start, fetch_end)
-                else:
+            total = 0
+            for fetch_start, fetch_end in ranges_to_fetch:
+                # Heartrate API enforces a max 30-day window; loop backwards to cover full range
+                window_end = fetch_end
+                try:
+                    while True:
+                        window_start = max(
+                            fetch_start,
+                            (date.fromisoformat(window_end) - timedelta(days=29)).isoformat(),
+                        )
+                        with db.transaction(conn):
+                            total += sync_heartrate(conn, client, window_start, window_end)
+                            db.update_sync_log(conn, metric, fetch_end)
+                        if window_start <= fetch_start:
+                            break
+                        window_end = (date.fromisoformat(window_start) - timedelta(days=1)).isoformat()
+                except OuraAPIError as e:
+                    result["errors"][metric] = e.message
+                    break
+            result["synced"][metric] = total
+            continue
+
+        total = 0
+        for fetch_start, fetch_end in ranges_to_fetch:
+            try:
+                with db.transaction(conn):
                     count = sync_daily_metric(conn, client, metric, fetch_start, fetch_end)
-                db.update_sync_log(conn, metric, fetch_end)
-            result["synced"][metric] = count
-        except OuraAPIError as e:
-            result["errors"][metric] = e.message
+                    db.update_sync_log(conn, metric, fetch_end)
+                total += count
+            except OuraAPIError as e:
+                result["errors"][metric] = e.message
+                break
+        result["synced"][metric] = total
 
     return result
 
