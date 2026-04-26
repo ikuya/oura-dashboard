@@ -63,8 +63,10 @@ uv run python daily_sync.py
 Add a crontab entry with `crontab -e`:
 
 ```
-0 15 * * * cd /path/to/oura-dashboard && uv run python daily_sync.py >> /var/log/oura-daily-sync.log 2>&1
+0 0,6,12,18 * * * /path/to/oura-dashboard/run_daily_sync.sh
 ```
+
+This runs 4 times a day (midnight, 6 AM, noon, 6 PM) so intraday heart rate data stays up to date.
 
 `.env` はプロジェクトディレクトリに置いておけば `python-dotenv` が自動で読み込みます。
 
