@@ -2,7 +2,9 @@
 
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+JST = timezone(timedelta(hours=9))
 
 from dotenv import load_dotenv
 
@@ -24,7 +26,7 @@ def main() -> int:
     db.init_db()
     client = OuraClient(token)
 
-    started_at = datetime.now(timezone.utc).isoformat()
+    started_at = datetime.now(JST).isoformat()
     print(f"[{started_at}] Starting daily sync (backfill_days={BACKFILL_DAYS})")
 
     with db.get_connection() as conn:
@@ -37,7 +39,7 @@ def main() -> int:
         for metric, msg in result["errors"].items():
             print(f"  {metric}: {msg}", file=sys.stderr)
 
-    finished_at = datetime.now(timezone.utc).isoformat()
+    finished_at = datetime.now(JST).isoformat()
     print(f"[{finished_at}] Done")
     return 1 if result["errors"] else 0
 
