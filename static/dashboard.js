@@ -533,12 +533,13 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
 
   function renderCalendar() {
     const MONTHS = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
-    const DAYS   = ["S","M","T","W","T","F","S"];
+    const DAYS   = ["M","T","W","T","F","S","S"];
 
     monthLabel.textContent = `${calState.year}年 ${MONTHS[calState.month]}`;
 
     const today        = new Date().toISOString().slice(0, 10);
-    const firstDow     = new Date(calState.year, calState.month, 1).getDay();
+    const rawDow       = new Date(calState.year, calState.month, 1).getDay();
+    const firstDow     = (rawDow + 6) % 7; // 0=Mon, 6=Sun
     const daysInMonth  = new Date(calState.year, calState.month + 1, 0).getDate();
     const prevMonthEnd = new Date(calState.year, calState.month, 0).getDate();
 
