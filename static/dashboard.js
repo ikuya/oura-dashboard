@@ -208,7 +208,7 @@ function renderAll(data, hrData) {
         x: TIME_SCALE,
         y: {
           grid: { color: "#2a2d3a" },
-          ticks: { callback: (v) => (v > 0 ? `+${v}` : v) },
+          ticks: { callback: (v) => (v > 0 ? `+${parseFloat(v.toFixed(1))}` : parseFloat(v.toFixed(1))) },
         },
       },
       plugins: {
