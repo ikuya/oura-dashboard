@@ -149,7 +149,7 @@ def _backfill_ranges(conn, metric: str, backfill_days: int, today: str) -> list[
 
     while current <= end_date:
         day_str = current.isoformat()
-        missing = day_str not in existing_days
+        missing = day_str not in existing_days or day_str == today
         if missing and gap_start is None:
             gap_start = day_str
         elif not missing and gap_start is not None:

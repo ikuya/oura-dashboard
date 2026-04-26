@@ -241,7 +241,7 @@ def test_backfill_ranges_no_gaps(mem_conn):
     mem_conn.commit()
 
     ranges = _backfill_ranges(mem_conn, "sleep", 7, "2024-01-10")
-    assert ranges == []
+    assert ranges == [("2024-01-10", "2024-01-10")]
 
 
 def test_backfill_ranges_single_gap_in_middle(mem_conn):
@@ -255,7 +255,7 @@ def test_backfill_ranges_single_gap_in_middle(mem_conn):
     mem_conn.commit()
 
     ranges = _backfill_ranges(mem_conn, "sleep", 7, "2024-01-10")
-    assert ranges == [("2024-01-07", "2024-01-08")]
+    assert ranges == [("2024-01-07", "2024-01-08"), ("2024-01-10", "2024-01-10")]
 
 
 def test_backfill_ranges_heartrate(mem_conn):
@@ -272,7 +272,7 @@ def test_backfill_ranges_heartrate(mem_conn):
     mem_conn.commit()
 
     ranges = _backfill_ranges(mem_conn, "heartrate", 7, "2024-01-10")
-    assert ranges == [("2024-01-09", "2024-01-09")]
+    assert ranges == [("2024-01-09", "2024-01-10")]
 
 
 # --- run_sync with backfill ---
