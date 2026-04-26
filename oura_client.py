@@ -89,7 +89,7 @@ class OuraClient:
 
     def get_vo2_max(self, start: str, end: str) -> list[dict]:
         return self._get(
-            "/v2/usercollection/vo2_max",
+            "/v2/usercollection/vO2_max",
             {"start_date": start, "end_date": end},
         )
 
