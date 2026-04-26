@@ -60,8 +60,6 @@ def _extract_score(metric: str, record: dict):
         return RESILIENCE_LEVEL_ORDER.get(level)
     elif metric == "cardiovascular_age":
         return record.get("vascular_age")
-    elif metric == "vo2_max":
-        return record.get("vo2_max")
     elif metric == "temperature":
         return record.get("temperature_deviation")
     return None
@@ -77,7 +75,6 @@ def sync_daily_metric(conn, client: OuraClient, metric: str, start: str, end: st
         "spo2": client.get_daily_spo2,
         "resilience": client.get_daily_resilience,
         "cardiovascular_age": client.get_daily_cardiovascular_age,
-        "vo2_max": client.get_vo2_max,
     }
 
     fetch_fn = fetch_map[metric]
@@ -180,7 +177,7 @@ def run_sync(
     end = requested_end or today
 
     all_daily_metrics = ["sleep", "readiness", "activity", "stress", "spo2",
-                         "resilience", "cardiovascular_age", "vo2_max"]
+                         "resilience", "cardiovascular_age"]
     if metrics is None:
         target_metrics = all_daily_metrics + ["heartrate"]
     else:

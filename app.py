@@ -80,7 +80,7 @@ def index():
 
 DAILY_METRICS = [
     "sleep", "readiness", "activity", "stress", "spo2",
-    "resilience", "cardiovascular_age", "vo2_max", "temperature",
+    "resilience", "cardiovascular_age", "temperature",
 ]
 
 _advice_jobs_lock = threading.Lock()
@@ -132,8 +132,6 @@ def _extract_key_fields(metric: str, row: dict) -> dict:
         base["temperature_trend_deviation"] = row.get("temperature_trend_deviation")
     elif metric == "resilience":
         base["level"] = row.get("level")
-    elif metric == "vo2_max":
-        base["vo2_max"] = row.get("vo2_max")
     elif metric == "cardiovascular_age":
         base["vascular_age"] = row.get("vascular_age")
     return base

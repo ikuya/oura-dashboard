@@ -106,7 +106,7 @@ function updateCard(prefix, records, valueField = "score", formatter = (v) => v 
 function renderAll(data, hrData) {
   const { sleep = [], readiness = [], activity = [], stress = [],
           spo2 = [], temperature = [], resilience = [],
-          vo2_max = [], cardiovascular_age = [] } = data;
+          cardiovascular_age = [] } = data;
 
   // Cards
   updateCard("sleep", sleep);
@@ -268,27 +268,6 @@ function renderAll(data, hrData) {
           ticks: { stepSize: 1, callback: (v) => RESILIENCE_LABELS[v] || "" },
         },
       },
-      plugins: { legend: { display: false } },
-    },
-  });
-
-  // VO2 Max
-  makeChart("chart-vo2", {
-    type: "line",
-    data: {
-      datasets: [{
-        label: "VO2 Max",
-        data: vo2_max.map((r) => ({ x: r.day, y: r.vo2_max ?? r.score ?? null })),
-        borderColor: "#34d399",
-        backgroundColor: "#34d39922",
-        tension: 0.3,
-        spanGaps: true,
-        pointRadius: 4,
-      }],
-    },
-    options: {
-      responsive: true,
-      scales: { x: TIME_SCALE, y: { grid: { color: "#2a2d3a" } } },
       plugins: { legend: { display: false } },
     },
   });

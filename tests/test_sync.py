@@ -68,7 +68,6 @@ def test_find_missing_range_caps_at_today(mem_conn):
     ("resilience", {"level": "exceptional"}, 5),
     ("resilience", {"level": "unknown"}, None),
     ("cardiovascular_age", {"vascular_age": 35}, 35),
-    ("vo2_max", {"vo2_max": 42.5}, 42.5),
     ("temperature", {"temperature_deviation": 0.2}, 0.2),
     ("heartrate", {"bpm": 60}, None),
 ])
@@ -88,7 +87,6 @@ def _make_client(metric, records):
         "spo2": client.get_daily_spo2,
         "resilience": client.get_daily_resilience,
         "cardiovascular_age": client.get_daily_cardiovascular_age,
-        "vo2_max": client.get_vo2_max,
     }
     fetch_map[metric].return_value = records
     return client
@@ -149,7 +147,6 @@ def _make_full_client(daily_records=None, heartrate_records=None):
     client.get_daily_spo2.return_value = records
     client.get_daily_resilience.return_value = records
     client.get_daily_cardiovascular_age.return_value = records
-    client.get_vo2_max.return_value = records
     client.get_heartrate.return_value = heartrate_records or []
     return client
 
