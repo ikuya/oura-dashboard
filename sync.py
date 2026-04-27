@@ -20,6 +20,9 @@ RESILIENCE_LEVEL_ORDER = {
 }
 
 
+REFETCH_DAYS = 7  # Re-fetch recent days since Oura may update scores retroactively
+
+
 def find_missing_range(conn, metric: str, requested_end: str) -> tuple[str, str] | None:
     """Return (start, end) date range to fetch, or None if already synced."""
     last = db.get_last_synced_day(conn, metric)
@@ -29,15 +32,17 @@ def find_missing_range(conn, metric: str, requested_end: str) -> tuple[str, str]
     if last is None:
         return (DEFAULT_START, end)
 
-    # Always re-fetch today since data updates throughout the day
-    if last == today and end == today:
-        return (today, today)
-
+    # Always re-fetch the last REFETCH_DAYS days because Oura scores (especially
+    # activity) can be null initially and get populated hours later.
+    refetch_start = (date.fromisoformat(today) - timedelta(days=REFETCH_DAYS - 1)).isoformat()
     next_day = (date.fromisoformat(last) + timedelta(days=1)).isoformat()
-    if next_day > end:
+
+    # Start from whichever is earlier: the refetch window or the next unsynced day
+    fetch_start = min(refetch_start, next_day)
+    if fetch_start > end:
         return None
 
-    return (next_day, end)
+    return (fetch_start, end)
 
 
 def _extract_score(metric: str, record: dict):
@@ -129,10 +134,12 @@ def _backfill_ranges(conn, metric: str, backfill_days: int, today: str) -> list[
     if metric == "heartrate":
         return [(window_start, today)]
 
+    # Treat days with null score as missing so they get re-fetched.
+    # Oura may return score=null initially and populate it hours later.
     existing_days = {
         row[0]
         for row in conn.execute(
-            "SELECT day FROM daily_metrics WHERE metric = ? AND day >= ? AND day <= ?",
+            "SELECT day FROM daily_metrics WHERE metric = ? AND day >= ? AND day <= ? AND score IS NOT NULL",
             (metric, window_start, today),
         ).fetchall()
     }

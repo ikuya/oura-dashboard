@@ -114,7 +114,8 @@ def get_daily_metrics(conn: sqlite3.Connection, metric: str, start: str, end: st
     result = []
     for row in rows:
         data = json.loads(row["data_json"])
-        result.append({"day": row["day"], "score": row["score"], **data})
+        # DB score column takes precedence over data_json to reflect any re-sync updates
+        result.append({**data, "day": row["day"], "score": row["score"]})
     return result
 
 
@@ -135,7 +136,7 @@ def get_daily_metrics_bulk(
     result = {metric: [] for metric in metrics}
     for row in rows:
         data = json.loads(row["data_json"])
-        result[row["metric"]].append({"day": row["day"], "score": row["score"], **data})
+        result[row["metric"]].append({**data, "day": row["day"], "score": row["score"]})
     return result
 
 
