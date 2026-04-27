@@ -159,6 +159,56 @@ function renderAll(data, hrData) {
     },
   });
 
+  // Steps bar chart
+  makeChart("chart-steps", {
+    type: "bar",
+    data: {
+      datasets: [
+        {
+          label: "Steps",
+          data: activity.map((r) => ({ x: r.day, y: r.steps ?? null })),
+          backgroundColor: "#f59e0b88",
+          borderColor: "#f59e0b",
+          borderWidth: 1,
+          order: 2,
+        },
+        {
+          label: "Goal (8,000)",
+          data: activity.map((r) => ({ x: r.day, y: 8000 })),
+          type: "line",
+          borderColor: "#6b728088",
+          borderDash: [4, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          backgroundColor: "transparent",
+          order: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: TIME_SCALE,
+        y: {
+          beginAtZero: true,
+          grid: { color: "#2a2d3a" },
+          ticks: { callback: (v) => v >= 1000 ? `${v / 1000}k` : v },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) =>
+              ctx.datasetIndex === 0
+                ? `Steps: ${ctx.parsed.y?.toLocaleString() ?? "—"}`
+                : "Goal: 8,000",
+          },
+        },
+      },
+    },
+  });
+
   // SpO2
   const spo2Scores = spo2.map((r) => {
     let v = r.spo2_percentage;
