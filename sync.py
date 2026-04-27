@@ -119,25 +119,23 @@ def _backfill_ranges(conn, metric: str, backfill_days: int, today: str) -> list[
 
     Checks each day in [today-backfill_days+1 .. today] for missing DB rows and
     returns the minimal set of contiguous ranges that cover those gaps.
+
+    For heartrate, day-level presence checks are insufficient because partial-day
+    gaps (e.g. a ring removed mid-day) won't be detected. The entire window is
+    always returned so INSERT OR IGNORE fills any holes without creating duplicates.
     """
     window_start = (date.fromisoformat(today) - timedelta(days=backfill_days - 1)).isoformat()
 
     if metric == "heartrate":
-        existing_days = {
-            row[0]
-            for row in conn.execute(
-                "SELECT DISTINCT day FROM heartrate WHERE day >= ? AND day <= ?",
-                (window_start, today),
-            ).fetchall()
-        }
-    else:
-        existing_days = {
-            row[0]
-            for row in conn.execute(
-                "SELECT day FROM daily_metrics WHERE metric = ? AND day >= ? AND day <= ?",
-                (metric, window_start, today),
-            ).fetchall()
-        }
+        return [(window_start, today)]
+
+    existing_days = {
+        row[0]
+        for row in conn.execute(
+            "SELECT day FROM daily_metrics WHERE metric = ? AND day >= ? AND day <= ?",
+            (metric, window_start, today),
+        ).fetchall()
+    }
 
     ranges: list[tuple[str, str]] = []
     gap_start: str | None = None
@@ -197,14 +195,18 @@ def run_sync(
 
         # Collect ranges to fetch: incremental range + any backfill gaps
         ranges_to_fetch: list[tuple[str, str]] = []
-        if rng is not None:
-            ranges_to_fetch.append(rng)
+        backfill_ranges: list[tuple[str, str]] = []
         if backfill_days > 0 and not requested_start:
-            for gap in _backfill_ranges(conn, metric, backfill_days, today):
-                # Skip if already covered by the incremental range
-                if rng and gap[0] >= rng[0]:
-                    continue
-                ranges_to_fetch.append(gap)
+            backfill_ranges = _backfill_ranges(conn, metric, backfill_days, today)
+
+        if rng is not None:
+            # Skip incremental range if it's already covered by a backfill range
+            covered = any(b[0] <= rng[0] and b[1] >= rng[1] for b in backfill_ranges)
+            if not covered:
+                ranges_to_fetch.append(rng)
+
+        for gap in backfill_ranges:
+            ranges_to_fetch.append(gap)
 
         if not ranges_to_fetch:
             result["synced"][metric] = 0

@@ -256,7 +256,8 @@ def test_backfill_ranges_single_gap_in_middle(mem_conn):
 
 
 def test_backfill_ranges_heartrate(mem_conn):
-    # Insert heartrate for all days except 2024-01-09
+    # Heartrate always returns the full window regardless of existing data,
+    # because day-level presence checks miss intra-day gaps.
     from datetime import date, timedelta
     for i in range(7):
         day = (date.fromisoformat("2024-01-10") - timedelta(days=6 - i)).isoformat()
@@ -269,7 +270,7 @@ def test_backfill_ranges_heartrate(mem_conn):
     mem_conn.commit()
 
     ranges = _backfill_ranges(mem_conn, "heartrate", 7, "2024-01-10")
-    assert ranges == [("2024-01-09", "2024-01-10")]
+    assert ranges == [("2024-01-04", "2024-01-10")]
 
 
 # --- run_sync with backfill ---
