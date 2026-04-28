@@ -8,6 +8,8 @@ let refreshAdviceCalendar = null;
 const state = {
   days: 30,
   charts: {},
+  hrMode: "7d",
+  hrDate: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })(),
 };
 
 // --- Auth ---
@@ -21,13 +23,16 @@ async function apiFetch(url, options = {}) {
 }
 
 // --- Helpers ---
+function localDateStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateStr();
 }
 function daysAgoStr(n) {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 function scoreColor(v) {
   if (v == null) return "#6b7280";
@@ -61,7 +66,7 @@ const TIME_SCALE = {
 };
 const TIME_SCALE_MINUTE = {
   type: "time",
-  time: { unit: "hour", tooltipFormat: "yyyy-MM-dd HH:mm" },
+  time: { unit: "hour", tooltipFormat: "yyyy-MM-dd HH:mm", displayFormats: { hour: "HH:mm" } },
   grid: { color: "#2a2d3a" },
   ticks: { maxTicksLimit: 10 },
 };
@@ -361,14 +366,15 @@ async function loadSyncStatus() {
 async function loadData() {
   const end = todayStr();
   const start = daysAgoStr(state.days);
-  const hrStart = daysAgoStr(7);
+  const hrStart = state.hrMode === "1d" ? state.hrDate : daysAgoStr(7);
+  const hrEnd = state.hrMode === "1d" ? state.hrDate : end;
 
   setStatus("Loading...");
 
   try {
     const [metricsRes, hrRes] = await Promise.all([
       apiFetch(`/api/metrics?start=${start}&end=${end}`),
-      apiFetch(`/api/heartrate?start=${hrStart}&end=${end}`),
+      apiFetch(`/api/heartrate?start=${hrStart}&end=${hrEnd}`),
     ]);
 
     if (!metricsRes.ok) throw new Error(`Metrics fetch failed: ${metricsRes.status}`);
@@ -430,6 +436,49 @@ document.querySelectorAll(".range-btns button").forEach((btn) => {
     state.days = parseInt(btn.dataset.days, 10);
     loadData();
   });
+});
+
+// --- HR mode buttons ---
+function updateHrDayLabel() {
+  const d = new Date(state.hrDate + "T00:00:00");
+  const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  document.getElementById("hr-day-label").textContent = label;
+  document.getElementById("hr-next-day").disabled = (state.hrDate >= todayStr());
+}
+
+document.getElementById("hr-btn-7d").addEventListener("click", () => {
+  state.hrMode = "7d";
+  document.getElementById("hr-btn-7d").classList.add("active");
+  document.getElementById("hr-btn-1d").classList.remove("active");
+  document.getElementById("hr-range-note").classList.remove("hidden");
+  document.getElementById("hr-day-nav").classList.add("hidden");
+  loadData();
+});
+
+document.getElementById("hr-btn-1d").addEventListener("click", () => {
+  state.hrMode = "1d";
+  document.getElementById("hr-btn-7d").classList.remove("active");
+  document.getElementById("hr-btn-1d").classList.add("active");
+  document.getElementById("hr-range-note").classList.add("hidden");
+  document.getElementById("hr-day-nav").classList.remove("hidden");
+  updateHrDayLabel();
+  loadData();
+});
+
+document.getElementById("hr-prev-day").addEventListener("click", () => {
+  const d = new Date(state.hrDate + "T00:00:00");
+  d.setDate(d.getDate() - 1);
+  state.hrDate = localDateStr(d);
+  updateHrDayLabel();
+  loadData();
+});
+
+document.getElementById("hr-next-day").addEventListener("click", () => {
+  const d = new Date(state.hrDate + "T00:00:00");
+  d.setDate(d.getDate() + 1);
+  state.hrDate = localDateStr(d);
+  updateHrDayLabel();
+  loadData();
 });
 
 // --- Advice button ---
