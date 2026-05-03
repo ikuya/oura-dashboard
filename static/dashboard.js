@@ -129,8 +129,8 @@ function renderAll(data, hrData) {
     type: "line",
     data: {
       datasets: [
-        lineDataset("Sleep", sleep, "#6366f1"),
         lineDataset("Readiness", readiness, "#22c55e"),
+        lineDataset("Sleep", sleep, "#6366f1"),
         lineDataset("Activity", activity, "#f59e0b"),
       ],
     },
