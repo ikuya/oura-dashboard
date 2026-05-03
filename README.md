@@ -31,7 +31,9 @@ uv sync
 # Set required environment variables
 echo "OURA_TOKEN=your_token_here" > .env
 echo "SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')" >> .env
-echo "APP_PASSWORD=your_password_here" >> .env
+
+# APP_PASSWORD stores a hashed password (not plaintext)
+echo "APP_PASSWORD=$(python3 -c 'from werkzeug.security import generate_password_hash; print(generate_password_hash("your_password_here"))')" >> .env
 ```
 
 The **Advice** feature calls `claude` CLI via subprocess. Log in with your Claude Code subscription before using it:
