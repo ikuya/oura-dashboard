@@ -4,7 +4,7 @@ A local web dashboard for Oura Ring biometric data. Fetches data from the Oura R
 
 ## Features
 
-- Overview dashboard with Sleep, Readiness, Activity, Stress, SpO2, Temperature, Heart Rate, Resilience, VO2 Max, and Cardiovascular Age
+- Overview dashboard with Sleep (including Restfulness trend), Readiness, Activity, Stress, SpO2, Temperature, Heart Rate, Resilience, VO2 Max, and Cardiovascular Age
 - Incremental sync — only fetches dates not yet stored locally
 - Date range selector: 7d / 30d / 90d / 180d
 - **Advice** — analyzes the last 14 days of data with Claude and displays a health summary and personalized advice in Japanese
