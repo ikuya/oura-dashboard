@@ -4,6 +4,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+from werkzeug.security import generate_password_hash
 
 import db
 
@@ -12,7 +13,7 @@ import db
 def app_client(mem_conn, tmp_path, monkeypatch):
     """Flask test client with in-memory DB and env vars set."""
     monkeypatch.setenv("SECRET_KEY", "test-secret")
-    monkeypatch.setenv("APP_PASSWORD", "test-password")
+    monkeypatch.setenv("APP_PASSWORD", generate_password_hash("test-password"))
     monkeypatch.setenv("OURA_TOKEN", "test-token")
 
     # Redirect DB to in-memory connection

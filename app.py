@@ -10,6 +10,7 @@ from functools import wraps
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory, session
+from werkzeug.security import check_password_hash
 
 import db
 import sync
@@ -52,11 +53,11 @@ def _parse_range() -> tuple[str, str]:
 
 @app.route("/api/login", methods=["POST"])
 def login():
-    password = os.environ.get("APP_PASSWORD")
-    if not password:
+    stored_hash = os.environ.get("APP_PASSWORD")
+    if not stored_hash:
         return jsonify({"error": "APP_PASSWORD not configured"}), 500
     body = request.get_json(silent=True) or {}
-    if body.get("password") == password:
+    if check_password_hash(stored_hash, body.get("password", "")):
         session.permanent = True
         session["authenticated"] = True
         return jsonify({"ok": True})
