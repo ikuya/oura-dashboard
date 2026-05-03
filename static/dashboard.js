@@ -171,6 +171,32 @@ function renderAll(data, hrData) {
     },
   });
 
+  // Sleep Efficiency
+  makeChart("chart-sleep-efficiency", {
+    type: "line",
+    data: {
+      datasets: [{
+        label: "Efficiency",
+        data: sleep.map((r) => ({ x: r.day, y: r.contributors?.efficiency ?? null })),
+        borderColor: "#34d399",
+        backgroundColor: "#34d39922",
+        pointBackgroundColor: sleep.map((r) => scoreColor(r.contributors?.efficiency)),
+        pointRadius: 3,
+        tension: 0.3,
+        spanGaps: true,
+        fill: false,
+      }],
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: TIME_SCALE,
+        y: { min: 0, max: 100, grid: { color: "#2a2d3a" } },
+      },
+      plugins: { legend: { display: false } },
+    },
+  });
+
   // Stress bar chart
   makeChart("chart-stress", {
     type: "bar",

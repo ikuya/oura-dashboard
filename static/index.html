@@ -15,6 +15,7 @@
     <h1 style="cursor:pointer;" onclick="location.reload()">Oura Dashboard</h1>
     <div class="range-btns">
       <button data-days="7">7d</button>
+      <button data-days="14">14d</button>
       <button data-days="30" class="active">30d</button>
       <button data-days="90">90d</button>
       <button data-days="180">180d</button>
@@ -68,11 +69,15 @@
     </div>
   </div>
 
-  <!-- Sleep Restfulness -->
-  <div class="chart-row">
+  <!-- Sleep Restfulness + Efficiency -->
+  <div class="chart-row two-col">
     <div class="chart-card">
       <h2>Sleep Restfulness</h2>
       <canvas id="chart-sleep-restfulness"></canvas>
+    </div>
+    <div class="chart-card">
+      <h2>Sleep Efficiency</h2>
+      <canvas id="chart-sleep-efficiency"></canvas>
     </div>
   </div>
 
