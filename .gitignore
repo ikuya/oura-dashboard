@@ -48,3 +48,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 .directory
+
+# Misc
+docs/
