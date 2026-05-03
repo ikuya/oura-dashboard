@@ -145,6 +145,32 @@ function renderAll(data, hrData) {
     },
   });
 
+  // Sleep Restfulness
+  makeChart("chart-sleep-restfulness", {
+    type: "line",
+    data: {
+      datasets: [{
+        label: "Restfulness",
+        data: sleep.map((r) => ({ x: r.day, y: r.contributors?.restfulness ?? null })),
+        borderColor: "#818cf8",
+        backgroundColor: "#818cf822",
+        pointBackgroundColor: sleep.map((r) => scoreColor(r.contributors?.restfulness)),
+        pointRadius: 3,
+        tension: 0.3,
+        spanGaps: true,
+        fill: false,
+      }],
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: TIME_SCALE,
+        y: { min: 0, max: 100, grid: { color: "#2a2d3a" } },
+      },
+      plugins: { legend: { display: false } },
+    },
+  });
+
   // Stress bar chart
   makeChart("chart-stress", {
     type: "bar",
