@@ -8,13 +8,17 @@ Chart.defaults.font.size = 12;
 export const TIME_SCALE = {
   type: "time",
   time: { unit: "day", tooltipFormat: "yyyy-MM-dd" },
+  adapters: { date: { zone: "UTC" } },
   grid: { color: "#2a2d3a" },
   ticks: { maxTicksLimit: 8 },
 };
 
+const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 export const TIME_SCALE_MINUTE = {
   type: "time",
   time: { unit: "hour", tooltipFormat: "yyyy-MM-dd HH:mm", displayFormats: { hour: "HH:mm" } },
+  adapters: { date: { zone: LOCAL_TZ } },
   grid: { color: "#2a2d3a" },
   ticks: { maxTicksLimit: 10 },
 };
