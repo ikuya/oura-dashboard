@@ -23,18 +23,32 @@ class OuraClient:
 
     def _get(self, path: str, params: dict) -> list[dict]:
         url = BASE_URL + path
-        try:
-            response = self.session.get(url, params=params, timeout=API_TIMEOUT)
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as e:
-            status = e.response.status_code if e.response is not None else None
-            msg = f"HTTP {status}: {e.response.text if e.response is not None else str(e)}"
-            if status == 401:
-                msg += "\nHint: Check your OURA_TOKEN."
-            raise OuraAPIError(status, msg) from e
-        except requests.exceptions.RequestException as e:
-            raise OuraAPIError(None, f"Request failed: {e}") from e
-        return response.json().get("data", [])
+        all_data: list[dict] = []
+        next_token: str | None = None
+
+        while True:
+            p = dict(params)
+            if next_token:
+                p["next_token"] = next_token
+            try:
+                response = self.session.get(url, params=p, timeout=API_TIMEOUT)
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                status = e.response.status_code if e.response is not None else None
+                msg = f"HTTP {status}: {e.response.text if e.response is not None else str(e)}"
+                if status == 401:
+                    msg += "\nHint: Check your OURA_TOKEN."
+                raise OuraAPIError(status, msg) from e
+            except requests.exceptions.RequestException as e:
+                raise OuraAPIError(None, f"Request failed: {e}") from e
+
+            body = response.json()
+            all_data.extend(body.get("data", []))
+            next_token = body.get("next_token")
+            if not next_token:
+                break
+
+        return all_data
 
     def get_daily_sleep(self, start: str, end: str) -> list[dict]:
         return self._get(
