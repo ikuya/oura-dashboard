@@ -119,6 +119,17 @@ export function renderAll(data, hrData, state) {
           spanGaps: true,
           fill: false,
         },
+        {
+          label: "Sleep Balance",
+          data: readiness.map((r) => ({ x: r.day, y: r.contributors?.sleep_balance ?? null })),
+          borderColor: "#fb923c",
+          backgroundColor: "#fb923c22",
+          pointBackgroundColor: readiness.map((r) => scoreColor(r.contributors?.sleep_balance)),
+          pointRadius: 3,
+          tension: 0.3,
+          spanGaps: true,
+          fill: false,
+        },
       ],
     },
     options: {
