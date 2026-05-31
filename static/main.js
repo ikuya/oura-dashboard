@@ -21,9 +21,13 @@ async function loadSyncStatus() {
     const status = await res.json();
     const table = document.getElementById("sync-status-table");
     table.innerHTML = Object.entries(status)
-      .map(([m, v]) =>
-        `<tr><td>${m}</td><td>${v.last_day || "never"}</td><td>${v.rows} rows</td></tr>`
-      ).join("");
+      .map(([m, v]) => {
+        const timeStr = v.last_synced_at
+          ? new Date(v.last_synced_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
+          : "";
+        const dayStr = v.last_day ? `${v.last_day} ${timeStr}`.trim() : "never";
+        return `<tr><td>${m}</td><td>${dayStr}</td><td>${v.rows} rows</td></tr>`;
+      }).join("");
   } catch (_) {}
 }
 

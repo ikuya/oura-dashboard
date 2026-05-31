@@ -63,6 +63,10 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_advice_history_saved_at
                 ON advice_history(saved_at);
         """)
+        try:
+            conn.execute("ALTER TABLE sync_log ADD COLUMN last_synced_at TEXT")
+        except sqlite3.OperationalError:
+            pass
 
 
 def upsert_daily_metric(conn: sqlite3.Connection, metric: str, day: str, score, data: dict) -> None:
@@ -91,9 +95,10 @@ def upsert_heartrate_batch(conn: sqlite3.Connection, records: list[dict]) -> int
 
 
 def update_sync_log(conn: sqlite3.Connection, metric: str, last_day: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
     conn.execute(
-        "INSERT OR REPLACE INTO sync_log (metric, last_synced_day) VALUES (?, ?)",
-        (metric, last_day),
+        "INSERT OR REPLACE INTO sync_log (metric, last_synced_day, last_synced_at) VALUES (?, ?, ?)",
+        (metric, last_day, now),
     )
 
 
@@ -186,12 +191,18 @@ def get_sync_status(conn: sqlite3.Connection) -> dict:
     ]
     status = {}
     for metric in metrics:
-        last_day = get_last_synced_day(conn, metric)
+        row = conn.execute(
+            "SELECT last_synced_day, last_synced_at FROM sync_log WHERE metric = ?", (metric,)
+        ).fetchone()
         if metric == "heartrate":
             count = conn.execute("SELECT COUNT(*) FROM heartrate").fetchone()[0]
         else:
             count = conn.execute(
                 "SELECT COUNT(*) FROM daily_metrics WHERE metric = ?", (metric,)
             ).fetchone()[0]
-        status[metric] = {"last_day": last_day, "rows": count}
+        status[metric] = {
+            "last_day": row["last_synced_day"] if row else None,
+            "last_synced_at": row["last_synced_at"] if row else None,
+            "rows": count,
+        }
     return status
