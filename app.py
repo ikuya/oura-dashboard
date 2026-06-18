@@ -152,7 +152,7 @@ def _build_health_payload(conn, days: int = 14) -> dict:
 def _build_advice_prompt(health_data: dict) -> str:
     return (
         ADVICE_SYSTEM_PROMPT
-        + "\n\n以下は私の直近14日間のOura Ringデータです。分析とアドバイスをお願いします。\n\n"
+        + "\n\n"
         + "```json\n"
         + _json.dumps(health_data, ensure_ascii=False, indent=2)
         + "\n```"
@@ -192,7 +192,7 @@ def _run_advice_job(job_id: str, prompt: str) -> None:
 
     try:
         result = subprocess.run(
-            ["claude", "-p", prompt, "--max-turns", "1"],
+            ["claude", "-p", prompt, "--max-turns", "1", "--model", "opus"],
             capture_output=True,
             text=True,
             timeout=120,
