@@ -192,7 +192,7 @@ def _run_advice_job(job_id: str, prompt: str) -> None:
 
     try:
         result = subprocess.run(
-            ["claude", "-p", prompt, "--max-turns", "1", "--model", "opus"],
+            ["claude", "-p", prompt, "--max-turns", "1", "--model", "opus", "--append-system-prompt", "You are a health data analysis assistant. Output only the analysis report. No preamble, no self-explanation, no meta-commentary about the task."],
             capture_output=True,
             text=True,
             timeout=120,
